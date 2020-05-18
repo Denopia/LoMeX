@@ -1,3 +1,7 @@
+# SpacedSeedSqueakr
+This is the spaced k-mer extraction part of the LoMeX pipeline. This is a modified version of the k-mer extraction program Squeakr. The original program is available here https://github.com/splatlab/squeakr. The original README file content is below.
+
+
 # squeakr
 Squeakr: An Exact and Approximate k -mer Counting System
 
