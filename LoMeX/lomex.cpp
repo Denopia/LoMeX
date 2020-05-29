@@ -1,6 +1,7 @@
 #include <boost/program_options.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <map>
@@ -71,16 +72,22 @@ class FastqFileReader
 		// Read fastq file line by line
 		bool new_read_gotten = false;
 		char current_nucleotide;
+		char push_nucleotide;
+		current_read.clear();
 		while (std::getline(fastq_file, fastq_line, '\n'))
 		{
-			// Line with the actual read encountered
+			// Line with the actual read encountered, it is the second line
 			if (read_line == 1)
 			{
-				current_read.clear();
 				for (int i = 0; i < fastq_line.length(); i++)
 				{
 					current_nucleotide = fastq_line.at(i);
-					current_read.push_back(current_nucleotide);
+					if (current_nucleotide == 'C' || current_nucleotide == 'c'){push_nucleotide = 'C';}
+					else if (current_nucleotide == 'A' || current_nucleotide == 'a'){push_nucleotide = 'A';}
+					else if (current_nucleotide == 'T' || current_nucleotide == 't'){push_nucleotide = 'T';}
+					else if (current_nucleotide == 'G' || current_nucleotide == 'g'){push_nucleotide = 'G';}
+					else {push_nucleotide = 'N';}
+					current_read.push_back(push_nucleotide);
 				}
 				new_read_gotten = true;
 				reads_left = true;
@@ -96,8 +103,7 @@ class FastqFileReader
 		if (!new_read_gotten)
 		{
 			reads_left = false;
-			fastq_file.close();
-			fastq_file.clear();
+			kill_me();
 		}
 	}
 
@@ -129,7 +135,7 @@ class LocationFileManager
 
 	int id;
 	int kmer_length;
-	int occurrence_bytes;
+	uint8_t occurrence_bytes;
 	bool kmer_remains;
 	uint8_t bytebuffer[1];
 	int sudoku;
@@ -145,49 +151,16 @@ class LocationFileManager
 	std::string my_file_path;
 
 
-
 	LocationFileManager(int n, std::string path, int total_length, std::vector<bool> & character_status, int delfile)
 	{
-		//std::cout << "Initialize basic stuff" << std::endl;
 		is_fixed_character = character_status;
 		kmer_remains = true;
 		kmer_length = total_length;
 		my_file_path = path;
 		sudoku = delfile;
-		//std::cout << "Open the binary file for reading" << std::endl;
 		location_file.open(path, ios::in | ios::binary);
-		//std::cout << "File opened successfully" << std::endl;
-		//std::cout << "Reading the first info byte" << std::endl;
 		read_file_info();
-		//std::cout << "Readig the first actual info line" << std::endl;;
 		read_next_line();
-
-		/*
-		std::cout << "The first k-mer in this file is: " << current_spaced_kmer_string << std::endl;
-		std::cout << "And its occurrences are: " << std::endl;
-		for (const std::string s : current_kmer_occurrences_string)
-		{
-			std::cout << s << std::endl;
-		}
-
-		read_next_line();
-
-		std::cout << "The second k-mer in this file is: " << current_spaced_kmer_string << std::endl;
-		std::cout << "And its occurrences are: " << std::endl;
-		for (const std::string s : current_kmer_occurrences_string)
-		{
-			std::cout << s << std::endl;
-		}
-
-		read_next_line();
-
-		std::cout << "The third k-mer in this file is: " << current_spaced_kmer_string << std::endl;
-		std::cout << "And its occurrences are: " << std::endl;
-		for (const std::string s : current_kmer_occurrences_string)
-		{
-			std::cout << s << std::endl;
-		}
-		*/
 			
 	}
 
@@ -196,13 +169,12 @@ class LocationFileManager
 	{	
 		//char ok[3];
 		//location_file.read(ok, 1);
-		
 		//std::cout << "This many bytes in one occurrence: " << bytebuffer[0] << std::endl;
-
-		location_file.read((char *) & bytebuffer, 1);
+		//location_file.read((char *) & bytebuffer, 1);
+		location_file.read((char*)(&occurrence_bytes), sizeof(occurrence_bytes));
+		//std::cout << "Bytes per k-mer: " << occurrence_bytes << std::endl;
 		//occurrence_bytes = bytebuffer[0];
-		occurrence_bytes = (int)bytebuffer[0];
-
+		//occurrence_bytes = (int)bytebuffer[0];
 		//std::cout << "This many bytes in one occurrence: " << occurrence_bytes << std::endl;
 	}
 
@@ -211,11 +183,15 @@ class LocationFileManager
 	{
 		clear_current_kmer();
 
+		std::string debug_last_spaced_kmer = "";
+		std::string debug_kmer = "";
+
 		if (!kmer_remains){return;}
 
-		int kmer_occurrences;
-		location_file.read((char *) & bytebuffer, 1);
-		kmer_occurrences = (int)bytebuffer[0];
+		int32_t kmer_occurrences = 0;
+		location_file.read((char*) (&kmer_occurrences), sizeof(kmer_occurrences));
+
+		//kmer_occurrences = (int)bytebuffer[0];
 
 		//std::cout << "The current k-mer has this many occurrences: " << kmer_occurrences << std::endl;
 
@@ -231,10 +207,10 @@ class LocationFileManager
 
 		uint8_t occbyte;
 		std::string current_kmer_occurrence_string;
-		for (int occi = 0; occi < kmer_occurrences; occi++)
+		for (int occi = 0; occi < kmer_occurrences; occi+=1)
 		{
 			current_kmer_occurrence_string = "";
-			for (int occb = 0; occb < occurrence_bytes; occb++)
+			for (int occb = 0; occb < occurrence_bytes; occb+=1)
 			{
 				location_file.read((char *) & bytebuffer, 1);
 				occbyte = bytebuffer[0];
@@ -242,6 +218,21 @@ class LocationFileManager
 			}
 			current_kmer_occurrence_string = current_kmer_occurrence_string.substr(0, kmer_length);
 			current_kmer_occurrences_string.push_back(current_kmer_occurrence_string);
+
+			// DEBUGGING, can be removed if no problems occur soon
+			debug_kmer = extract_spaced_kmer(current_kmer_occurrence_string, is_fixed_character);
+			if (debug_last_spaced_kmer.length() == 0){debug_last_spaced_kmer = debug_kmer;}
+			else 
+			{
+				if (debug_last_spaced_kmer.compare(debug_kmer) != 0)
+				{
+					std::cout << debug_last_spaced_kmer << std::endl;
+					std::cout << debug_kmer << std::endl;
+					std::cout << "ERROR WITH BINARY STORED REGULAR K-MERS !!!!";
+					exit(9);
+				}
+			}
+
 		}
 
 		current_spaced_kmer_string = extract_spaced_kmer(current_kmer_occurrences_string[0], is_fixed_character);
@@ -362,10 +353,12 @@ class LocationMerger
 
 		for (int i = 0; i < n_files; i+=1)
 		{
-			//std::cout << "First file manager for: " << file_paths[i] << std::endl;
-			files.push_back(LocationFileManager(i, file_paths[i], kmer_length, is_fixed_character, cleanup));
-			//std::cout << "File manager created successfully " << std::endl;
-			
+			if (boost::algorithm::ends_with(file_paths[i], ".bin"))
+			{	
+				//std::cout << "First file manager for: " << file_paths[i] << std::endl;
+				files.push_back(LocationFileManager(i, file_paths[i], kmer_length, is_fixed_character, cleanup));
+				//std::cout << "File manager created successfully " << std::endl;
+			}
 		}
 		//std::cout << "Start solving next k-mer" << std::endl;
 		solve_next_kmer();
@@ -635,7 +628,7 @@ int main(int argc, char *argv[])
 	 *
 	*/
 	
-	cout << "Reading fastq file reads one by one and writing k-mer occurrences in separate files" << endl;
+	std::cout << "Reading fastq file reads one by one and writing k-mer occurrences in separate files" << std::endl;
 
 	// Create a fastq file reader
 	
@@ -710,11 +703,6 @@ int main(int argc, char *argv[])
 
 			// Finally add k-mer to buffer 
 
-
-			// TÄÄ ÄIJÄ TÄSSÄ ALLA TALLENTAA STRINGIT VAAN OIKEIN PÄIN, MUUTA NIIN ET MENEE VÄÄRINPÄIN JOS TARVII
-
-			//kmer2nonfixed[stored_read_spaced_kmer].push_back(std::string(read_vector.begin()+ri, read_vector.begin()+ri+total_length));
-
 			stored_counter += 1;
 
 			if(stored_counter % 100000 == 0){std::cout << "This many occurrences in buffer: " << stored_counter << std::endl;}
@@ -739,8 +727,6 @@ int main(int argc, char *argv[])
 	std::cout << "File written: " << file_counter << std::endl;
 	
 	fastq_reader.kill_me();
-	//cout << "FINISHED TESTS" << endl;
-	//return 0;
 
 
 occurrences_skipped:
@@ -850,7 +836,7 @@ occurrences_skipped:
 	while(loc_merger.get_kmer_remains())
 	{
 		// Debug printing
-		if (solved_kmer_counter % 100000 == 0)
+		if (solved_kmer_counter % 10000 == 0)
 		{
 			std::cout << "Solved k-mers: " << solved_kmer_counter << std::endl;
 		}

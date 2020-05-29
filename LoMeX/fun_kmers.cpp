@@ -105,10 +105,11 @@ __uint128_t reverse_complement_seqint(__uint128_t seq, uint64_t len)
 		nuc = seq & 3ULL; // 3 unsigned long long
 		nuc = reverse_complement_nucint(nuc);
 		seq >>= 2;
+		rev_seq <<= 2; // MODIFIED RIGHT HERE, SWAP WITH BELOW IF PROBLEMS OCCUR
 		rev_seq |= nuc;
-		rev_seq <<= 2;
+		
 	}
-	rev_seq >>=2;
+	//rev_seq >>=2;
 	return rev_seq;
 }
 
@@ -132,6 +133,16 @@ string reverse_complement_seqstr(string seq)
 bool compare_seqs(__uint128_t seq1, __uint128_t seq2)
 {
 	return seq1 >= seq2;
+}
+
+bool compare_seqs_string(std::string seq1, std::string seq2)
+{
+	for (int i = 0; i < seq1.length(); i+= 1)
+	{
+		if (seq1[i] < seq2[i]){return true;}
+		if (seq2[i] < seq1[i]){return false;}
+	}
+	return true;
 }
 
 

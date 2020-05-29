@@ -106,7 +106,7 @@ def compare(real_path, extracted_path, k):
 
 def main(real_path, extracted_path, k):
 	print("Analyzing k-mers")
-	compare(real_path, extracted_path, k)
+	compare(real_path, extracted_path, int(k))
 
 if __name__ == "__main__":
    main(sys.argv[1], sys.argv[2], sys.argv[3])

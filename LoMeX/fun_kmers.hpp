@@ -87,6 +87,14 @@ bool compare_seqs(__uint128_t seq1, __uint128_t seq2);
 
 
 /*
+	Given two sequences, determines if the first one is
+	bigger according to the mapped nuclotide values.
+	(Used to compare k-mer and its reverse complement)
+*/
+bool compare_seqs_string(std::string seq1, std::string seq2);
+
+
+/*
 	Given a 64 bit integer x and another integer y,
 	checks if the y rightmost bits in x are zeros.
 */
