@@ -12,6 +12,8 @@
 #include <regex>
 #include <string>
 #include <tuple>
+#include <vector>
+#include <deque>
 #include <random>
 #include <math.h>
 #include "fun_kmers.hpp"
@@ -37,7 +39,7 @@ class FastqFileReader
 
 	std::ifstream fastq_file;
 	std::string fastq_line;
-	std::vector<char> current_read;
+	std::deque<char> current_read;
 	bool reads_left;
 	int read_line;
 
@@ -108,7 +110,7 @@ class FastqFileReader
 	}
 
 
-	std::vector<char> get_next_read()
+	std::deque<char> get_next_read()
 	{
 		return current_read;
 	}
@@ -528,10 +530,10 @@ int main(int argc, char *argv[])
 	// Initialize k-mer stuff
 	vector<bool> character_status; // bit vector for spaced seed pattern
 	int total_length, fixed_length; // pattern total length, pattern fixed characters
-	vector<int> fixed_block_positions, fixed_block_lengths; // fixed character block start positions and lengths
+	vector<int> fixed_block_positions, fixed_block_lengths, fixed_nuc_positions; // fixed character block start positions and lengths
 
 	// Get gapped k-mer characteristics, std::tie
-	tie(character_status, total_length, fixed_length, fixed_block_positions, fixed_block_lengths) = interpret_spaced_seed_pattern(spaced_seed_pattern);
+	tie(character_status, total_length, fixed_length, fixed_block_positions, fixed_block_lengths, fixed_nuc_positions) = interpret_spaced_seed_pattern(spaced_seed_pattern);
 
 
 	// Pattern length cannot be even, throw an exception and kill the program
@@ -562,16 +564,26 @@ int main(int argc, char *argv[])
 	int stored_counter;															// Counter for how many k-mer locations have been stored into memory
 	int file_counter;															// Counter for how many location files have been created
 	int stored_buffer;
-	map<__uint128_t, vector<std::string> > kmer2nonfixed;						// k-mer and its occurrences in a map
-	__uint128_t current_read_spaced_kmer;										// Current spaced k-mer as integer
-	__uint128_t reversed_current_read_spaced_kmer;								// Current spaced k-mer reverse complement as integer
-	__uint128_t stored_read_spaced_kmer;										// Current greater spaced k-mer (forward or reverse) as integer
+	//map<__uint128_t, vector<std::string> > spaced2regular;					// k-mer and its occurrences in a map
+	map<__uint128_t, vector<uint8_t> > spaced2regular;							// k-mer and its occurrences in a map
+	//__uint128_t current_read_spaced_kmer;										// Current spaced k-mer as integer
+	//__uint128_t reversed_current_read_spaced_kmer;								// Current spaced k-mer reverse complement as integer
+	//__uint128_t stored_read_spaced_kmer;										// Current greater spaced k-mer (forward or reverse) as integer
 	bool read_spaced_kmer_ok;													// Current spaced k-mer contains no Ns
 	uint8_t current_read_char;													// Current read character is ok (is A, C, G or T)
-	std::vector<char> read_vector;												// Store current read vector here
+	//std::vector<char> read_vector;												// Store current read vector here
+	std::deque<char> read_deque;
 	std::string kmer_loc_path;
 	int read_counter;
 	FastqFileReader fastq_reader; 
+	//uint8_t regular_kmer_bytes;
+
+	std::deque<bool> nasty_nucs;
+	std::deque<uint8_t> long_kmer_as_bits;
+	std::deque<uint8_t> long_kmer_as_bits_rev;
+	__uint128_t spaced_kmer_as_bits;
+	__uint128_t spaced_kmer_as_bits_rev;
+	uint8_t rando_nuc;
 
 	
 
@@ -639,6 +651,7 @@ int main(int argc, char *argv[])
 	stored_counter = 0;
 	file_counter = 0;
 	read_counter = 0;
+	//regular_kmer_bytes = static_cast<uint8_t>(ceil(total_length / 4.0));
 
 	// Go through all stored reads
 	while(fastq_reader.get_reads_left())
@@ -647,7 +660,7 @@ int main(int argc, char *argv[])
 		// Tell file reader to find the next read in the file
 		fastq_reader.roll_to_next_read();
 		// Fetch the next read
-		read_vector = fastq_reader.get_next_read();
+		read_deque = fastq_reader.get_next_read();
 
 		if (read_counter % 100000 == 0){std::cout << "Looking at read number: " << read_counter << std::endl;}
 		read_counter += 1;
@@ -655,75 +668,77 @@ int main(int argc, char *argv[])
 		//std::cout << std::endl;
 
 		// If read is too small to contain any kmers we need to skip it completely
-		if (read_vector.size() < total_length){continue;}
+		if (read_deque.size() < total_length){continue;}
+
+		long_kmer_as_bits.clear();
+		long_kmer_as_bits_rev.clear();
 
 		// Go through all read positions
-		for (int ri = 0; ri + total_length - 1 < read_vector.size(); ri++)
+
+		while (!read_deque.empty())
 		{
-			// Solve the current read spaced k-mer
-			current_read_spaced_kmer = 0;
+			spaced_kmer_as_bits = 0;
+			spaced_kmer_as_bits_rev = 0;
 			read_spaced_kmer_ok = true;
-			for (int j = 0; j < total_length; j++)
+			current_read_char = map_nuc2int(read_deque.front());
+			if (current_read_char > 3)
 			{
-				if(character_status[j])
-				{
-					current_read_char = map_nuc2int(read_vector[ri+j]);
-					if (current_read_char > 3)
-					{
-						read_spaced_kmer_ok = false;
-						break;
-					}
-					current_read_spaced_kmer = current_read_spaced_kmer << 2;
-					current_read_spaced_kmer = current_read_spaced_kmer | current_read_char;
-				}
+				rando_nuc = random_nucleotide();
+				long_kmer_as_bits.push_back(rando_nuc);
+				long_kmer_as_bits_rev.push_front(reverse_complement_nucint(rando_nuc));
+				nasty_nucs.push_back(true);
+			}
+			if (current_read_char <= 3)
+			{
+				long_kmer_as_bits.push_back(current_read_char);
+				long_kmer_as_bits_rev.push_front(reverse_complement_nucint(current_read_char));
+				nasty_nucs.push_back(false);
 			}
 
-			// Current read spaced k-mer solved, check if it is valid and add to map if so
-
-			// Check that there are no N characters
+			read_deque.pop_front();
+			if (long_kmer_as_bits.size() < total_length){continue;}
+			if (long_kmer_as_bits.size() > total_length)
+			{
+				long_kmer_as_bits.pop_front();
+				long_kmer_as_bits_rev.pop_back();
+				nasty_nucs.pop_front();
+			}
+			for (int ii = 0; ii < total_length; ii+=1)
+			{
+				if (!character_status[ii]){continue;}
+				if (nasty_nucs[ii]){read_spaced_kmer_ok=false;break;}
+				spaced_kmer_as_bits <<= 2;
+				spaced_kmer_as_bits |= long_kmer_as_bits[ii];
+			}
 			if (!read_spaced_kmer_ok){continue;}
+			spaced_kmer_as_bits_rev = reverse_complement_seqint(spaced_kmer_as_bits, fixed_length);
 
-			// Check that the spaced k-mer was reported by Squeakr
-			reversed_current_read_spaced_kmer = reverse_complement_seqint(current_read_spaced_kmer, fixed_length);
-			if (kmer2occ.count(current_read_spaced_kmer) == 0 && kmer2occ.count(reversed_current_read_spaced_kmer) == 0) {continue;}
+			if (kmer2occ.count(spaced_kmer_as_bits) == 0 && kmer2occ.count(spaced_kmer_as_bits_rev) == 0) {continue;}
 
-			// Check which is bigger, forward or reverse spaced k-mer
-			if (compare_seqs(current_read_spaced_kmer, reversed_current_read_spaced_kmer))
-			{
-				stored_read_spaced_kmer = current_read_spaced_kmer; // First is bigger
-				kmer2nonfixed[stored_read_spaced_kmer].push_back(std::string(read_vector.begin()+ri, read_vector.begin()+ri+total_length));
-			}
-			else
-			{	
-				stored_read_spaced_kmer = reversed_current_read_spaced_kmer; // Second is bigger
-				std::string fortemp = std::string(read_vector.begin()+ri, read_vector.begin()+ri+total_length);
-				std::string fortemprev = reverse_complement_seqstr(fortemp);
-				kmer2nonfixed[stored_read_spaced_kmer].push_back(fortemprev);
-			}
-
-			// Finally add k-mer to buffer 
+			// Check which is bigger, forward or reverse spaced k-mer, and add to buffer
+			if (compare_seqs(spaced_kmer_as_bits, spaced_kmer_as_bits_rev)){put_kmer_in_buffer(long_kmer_as_bits, spaced2regular, spaced_kmer_as_bits);}
+			else{put_kmer_in_buffer(long_kmer_as_bits_rev, spaced2regular, spaced_kmer_as_bits_rev);}
 
 			stored_counter += 1;
-
 			if(stored_counter % 100000 == 0){std::cout << "This many occurrences in buffer: " << stored_counter << std::endl;}
 
 			if (stored_counter >= stored_buffer)
 			{
-				current_file_path = write_occurrences_binary(kmer2nonfixed, work_dir, file_counter, fixed_length, total_length);
+				current_file_path = write_regular_kmers_ready_binary(spaced2regular, work_dir, file_counter, fixed_length, total_length);
 				kmer_occurrences_file_paths.push_back(current_file_path);
 				stored_counter = 0;
 				file_counter += 1;
-				kmer2nonfixed.clear();
+				spaced2regular.clear();
 				std::cout << "File written: " << file_counter << std::endl;
 			}
 		}
 	}
 
-	current_file_path = write_occurrences_binary(kmer2nonfixed, work_dir, file_counter, fixed_length, total_length);
+	current_file_path = write_regular_kmers_ready_binary(spaced2regular, work_dir, file_counter, fixed_length, total_length);
 	kmer_occurrences_file_paths.push_back(current_file_path);
 	stored_counter = 0;
 	file_counter += 1;
-	kmer2nonfixed.clear();
+	spaced2regular.clear();
 	std::cout << "File written: " << file_counter << std::endl;
 	
 	fastq_reader.kill_me();

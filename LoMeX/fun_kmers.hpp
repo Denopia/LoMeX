@@ -135,7 +135,7 @@ bool no_Ns_present(uint64_t nbs[], vector<int> &lengths, int blocks);
 	of continuous fixed and don't care blocks, and
 	the starting positions of these blocks.
 */
-tuple<vector<bool>, int, int, vector<int>, vector<int> > interpret_spaced_seed_pattern(string pattern);
+tuple<vector<bool>, int, int, vector<int>, vector<int>, vector<int> > interpret_spaced_seed_pattern(string pattern);
 
 
 /*

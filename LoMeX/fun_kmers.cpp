@@ -165,12 +165,12 @@ bool no_Ns_present(uint64_t nbs[], vector<int> &lengths, int blocks)
 
 
 // Requires the spaced seed pattern to be in the form of "a-b-c-d-e-f-g"
-tuple<vector<bool>, int, int, vector<int>, vector<int> > interpret_spaced_seed_pattern(string pattern)
+std::tuple< std::vector<bool>, int, int, std::vector<int>, std::vector<int>, std::vector<int> > interpret_spaced_seed_pattern(string pattern)
 {
 	regex rgx("-+");
     sregex_token_iterator iter(pattern.begin(), pattern.end(), rgx, -1);
     sregex_token_iterator last{};
-    vector<int> segments, block_starts, block_lengths;
+    vector<int> segments, block_starts, block_lengths, fixed_nucs;
     int number_of_segments = 0;
     int total_length = 0;
     int fixed_length = 0;
@@ -197,7 +197,12 @@ tuple<vector<bool>, int, int, vector<int>, vector<int> > interpret_spaced_seed_p
 		}
 		current_status = !current_status;
 	}
-	return make_tuple(character_status, total_length, fixed_length, block_starts, block_lengths);
+	for (int j = 0; j < total_length; j+=1)
+	{
+		if (character_status[j]){fixed_nucs.push_back(j);}
+
+	}
+	return make_tuple(character_status, total_length, fixed_length, block_starts, block_lengths, fixed_nucs);
 }
 
 
