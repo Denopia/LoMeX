@@ -45,7 +45,14 @@ string map_int2str(__uint128_t seq, uint64_t len);
 	Given a string, return the corresponding
 	nucleotide sequence as 128 bit integer
 */
-__uint128_t map_str2int(string seq);
+__uint128_t map_str2int(std::string seq);
+
+
+/*
+	Given a string, return the corresponding
+	nucleotide sequence as 128 bit integer
+*/
+void map_str2intR(std::string & seq, __uint128_t & bin_seq);
 
 
 /*
@@ -75,7 +82,7 @@ __uint128_t reverse_complement_seqint(__uint128_t seq, uint64_t len);
 	Given a nuclotide sequence as a string,
 	return its reverse complement as a string
 */
-string reverse_complement_seqstr(string seq);
+std::string reverse_complement_seqstr(string seq);
 
 
 /*
@@ -138,10 +145,10 @@ bool no_Ns_present(uint64_t nbs[], vector<int> &lengths, int blocks);
 tuple<vector<bool>, int, int, vector<int>, vector<int>, vector<int> > interpret_spaced_seed_pattern(string pattern);
 
 
+
 /*
 	Extracts spaced k-mer from a long k-mer using the given spaced k-mer pattern
 */
 std::string extract_spaced_kmer(std::string long_kmer, std::vector<bool> & is_fixed_character);
-
 
 #endif

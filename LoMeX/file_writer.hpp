@@ -15,7 +15,7 @@ using namespace std;
 /*
 	Write locations into a file
 */
-std::string write_locations(map<__uint128_t, vector<int> > &kmer2positions, std::string work_dir, int file_number, int fixed_length);
+std::string write_locations(map<__uint128_t, vector<int> > & kmer2positions, std::string work_dir, int file_number, int fixed_length);
 
 
 /*
@@ -24,7 +24,7 @@ std::string write_locations(map<__uint128_t, vector<int> > &kmer2positions, std:
 	SUPPORT ONLY FOR k-MERS UP TO k = 255*4 = 1020 
 
 */
-std::string write_occurrences_binary(map<__uint128_t, vector<std::string> > &kmer2occurrences, std::string work_dir, int file_number, int fixed_length, int total_length);
+std::string write_occurrences_binary(map<__uint128_t, vector<std::string> > & kmer2occurrences, std::string work_dir, int file_number, int fixed_length, int total_length);
 
 
 /*

@@ -60,7 +60,7 @@ string map_int2str(__uint128_t seq, uint64_t len)
 
 
 // Idea from Squeakr
-__uint128_t map_str2int(string str)
+__uint128_t map_str2int(std::string str)
 {
 	__uint128_t strint = 0;
 	for (auto it = str.begin(); it != str.end(); it++) {
@@ -76,6 +76,30 @@ __uint128_t map_str2int(string str)
 	}
 	return strint >> 2;
 }
+
+
+void map_str2intR(std::string & seq, __uint128_t & bin_seq)
+{
+	bin_seq = 0;
+	for (auto it = seq.begin(); it != seq.end(); it++) {
+		uint8_t nuc = 0;
+		switch (*it) {
+			case 'A': {nuc = NUC_MAP::A; break;}
+			case 'T': {nuc = NUC_MAP::T; break;}
+			case 'C': {nuc = NUC_MAP::C; break;}
+			case 'G': {nuc = NUC_MAP::G; break;}
+		}
+		bin_seq <<= 2;
+		bin_seq |= nuc;
+	}
+}
+
+
+
+
+
+
+
 
 
 // Idea from Squeakr
@@ -204,6 +228,7 @@ std::tuple< std::vector<bool>, int, int, std::vector<int>, std::vector<int>, std
 	}
 	return make_tuple(character_status, total_length, fixed_length, block_starts, block_lengths, fixed_nucs);
 }
+
 
 
 std::string extract_spaced_kmer(std::string long_kmer, std::vector<bool> & is_fixed_character)
