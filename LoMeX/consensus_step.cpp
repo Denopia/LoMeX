@@ -23,7 +23,7 @@ using namespace std;
 
 
 
-void run_consensus_step(std::string work_dir, std::string output_path, int total_length, int fixed_length, double relative_nuc_threshold, int abs_min_nuc, int delete_files, vector<bool> & character_status)
+tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output_path, int total_length, int fixed_length, double relative_nuc_threshold, int abs_min_nuc, int delete_files, vector<bool> & character_status)
 {
 
 	std::cout << "Building long consensus k-mers" << std::endl;
@@ -71,7 +71,7 @@ void run_consensus_step(std::string work_dir, std::string output_path, int total
     else
     {
     	std::cout << "No directory for temporary files found" << std::endl;
-    	return;
+    	return make_tuple(0, 0, 0);
     }
 
     // Create file merger
@@ -249,6 +249,8 @@ consensus_cleanup:
 	std::cout << "Unambiguous consensus k-mers: " << unambiguous_consensus << std::endl;
 	std::cout << "Simple ambiguous consensus k-mers: " << simple_ambiguous_consensus << std::endl;
 	std::cout << "Complex ambiguous consensus k-mers: " << complex_ambiguous_consensus << std::endl;
+
+	return make_tuple(unambiguous_consensus, simple_ambiguous_consensus, complex_ambiguous_consensus);
 
 	//return 0;
 }

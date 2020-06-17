@@ -19,12 +19,15 @@ private:
 	std::string fastq_line;
 	bool reads_left;
 	int read_line;
+	int first;
+	int last;
+	int current_read_number;
 	std::deque<char> current_read;
 
 public:
     //FastqFileReader(){}
  
-    void initialize_me(std::string file_path);
+    void initialize_me(std::string file_path, int start_position, int end_position);
 
 	void kill_me();
 
@@ -119,6 +122,9 @@ public:
 
 	bool get_kmer_remains(){return kmer_remains;}
 };
+
+
+int count_fastq_lines(std::string reads_path);
 
 
 #endif

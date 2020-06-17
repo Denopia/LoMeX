@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
 
 	// Initialize arguments
 	string kmers_path, reads_path, output_path, work_dir, spaced_seed_pattern;
-	int kmer_min, buffer_size, delete_files, skip_occurrences, skip_consensus, abs_min_nuc, iterations;
+	int kmer_min, buffer_size, delete_files, skip_occurrences, skip_consensus, abs_min_nuc, iterations, threads;
 	float relative_nuc_threshold;
 
 	// Parse arguments
@@ -63,11 +63,12 @@ int main(int argc, char *argv[])
 		("spaced-seed,s", po::value<std::string>(& spaced_seed_pattern)->default_value("na"), "Spaced seed pattern")
 		("min-occ,m", po::value<int>(& kmer_min)->default_value(2), "Minimum number of k-mer occurrences required")
 		("min-nuc,n", po::value<int>(& abs_min_nuc)->default_value(2), "Minimum nucleotide threshold")
-		("rel-nuc,t", po::value<float>(& relative_nuc_threshold)->default_value(0.1), "Relative nucleotide threshold")
+		("rel-nuc,l", po::value<float>(& relative_nuc_threshold)->default_value(0.1), "Relative nucleotide threshold")
 		("buffer-size,b", po::value<int>(& buffer_size)->default_value(5000000), "Buffer size for k-mer occurrences")
 		("delete-files,d", po::value<int>(& delete_files)->default_value(0), "Delete temporary location files")
 		("skip-occurrences,f", po::value<int>(& skip_occurrences)->default_value(0), "Skip occurrence finding step")
 		("skip-consensus,c", po::value<int>(& skip_consensus)->default_value(0), "Skip consensus finding step")
+		("threads,t", po::value<int>(& threads)->default_value(1), "Threads")
 		("iterations,i", po::value<int>(& iterations)->default_value(1), "Iterations");
 
 	po::variables_map vm;
@@ -103,10 +104,23 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
+	std::cout << "Calculating how to split the job between threads" << std::endl;
+	int number_of_reads = (int)std::floor((double)count_fastq_lines(reads_path) / 4.0);
+	std::cout << number_of_reads << " reads are split between " << threads << " threads" << std::endl;
+
 	std::cout << "Initialization done" << std::endl;
 
 	std::cout << "Long k-mer extraction" << std::endl;
-	
+
+	// Keep track of some stats to print at the end of the program
+	int ua = 0;
+	int sa = 0;
+	int ca = 0;
+
+	int nua = 0;
+	int nsa = 0;
+	int nca = 0;
+
 	for (int i = 0; i < iterations; i+=1)
 	{
 
@@ -118,7 +132,7 @@ int main(int argc, char *argv[])
 		*/
 		if(skip_occurrences != 1)
 		{
-			run_search_step(work_dir, kmers_path, reads_path, buffer_size, total_length, fixed_length, character_status, kmer_min, i, iterations);
+			run_search_step(work_dir, kmers_path, reads_path, buffer_size, total_length, fixed_length, character_status, kmer_min, i, iterations, threads, number_of_reads);
 		}
 
 		/*
@@ -127,7 +141,10 @@ int main(int argc, char *argv[])
 		*/
 		if (skip_consensus != 1)
 		{
-			run_consensus_step(work_dir, output_path, total_length, fixed_length, relative_nuc_threshold, abs_min_nuc, delete_files, character_status);
+			tie(nua, nsa, nca) = run_consensus_step(work_dir, output_path, total_length, fixed_length, relative_nuc_threshold, abs_min_nuc, delete_files, character_status);
+			ua += nua;
+			sa += nsa;
+			ca += nca;
 		}
 	}
 	
@@ -135,7 +152,18 @@ int main(int argc, char *argv[])
 	 *
 	 * Step 5: End of the program
 	 *
-	*/	
+	*/
+
+
+	std::cout << "################# k-mer extraction stats #################" << std::endl;
+	std::cout << "Total number of consensus k-mers: " << ua + sa + ca << std::endl;
+	std::cout << "Unambiguous consensus k-mers: " << ua << std::endl;
+	std::cout << "Simple ambiguous consensus k-mers: " << sa << std::endl;
+	std::cout << "Complex ambiguous consensus k-mers: " << ca << std::endl;
+	std::cout << "##########################################################" << std::endl;
+
+
+
 	std::cout << "Program run finished successfully. Thank you for using LoMeX." << std::endl;
 	return 0;
 

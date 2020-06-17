@@ -31,7 +31,7 @@ std::string write_occurrences_binary(map<__uint128_t, vector<std::string> > & km
 	Write regular k-mers in a file as binary
 
 */
-std::string write_regular_kmers_ready_binary(map<__uint128_t, vector<uint8_t> > & spaced2regular, std::string work_dir, int file_number, int fixed_length, int total_length);
+std::string write_regular_kmers_ready_binary(map<__uint128_t, vector<uint8_t> > & spaced2regular, std::string work_dir, int file_number, int fixed_length, int total_length, int thread);
 
 /*
 	Put regular k-mer into a buffer as bytes forward 
@@ -75,5 +75,14 @@ char random_nucleotide();
 	Map a byte into four nucleotides
 */
 std::string map_byte2fournucs(uint8_t byte);
+
+
+
+// New experimental stuff
+void put_kmer_in_buffer_REE(std::deque<uint8_t> & long_kmer, map<__uint128_t, vector<uint8_t> > & spaced2regular, __uint128_t stored_read_spaced_kmer);
+
+// New experimental stuff
+void update_last4(std::deque< std::deque<uint8_t> > & last4longkmers, std::deque<uint8_t> & long_kmer_as_bits, int last_amigos);
+
 
 #endif

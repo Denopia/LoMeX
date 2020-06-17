@@ -167,10 +167,10 @@ std::string write_occurrences_binary(map<__uint128_t, vector<std::string> > &kme
 }
 
 
-std::string write_regular_kmers_ready_binary(map<__uint128_t, vector<uint8_t> > & spaced2regular, std::string work_dir, int file_number, int fixed_length, int total_length)
+std::string write_regular_kmers_ready_binary(map<__uint128_t, vector<uint8_t> > & spaced2regular, std::string work_dir, int file_number, int fixed_length, int total_length, int thread)
 {
 	// Define file path
-	std::string file_path = work_dir + "/spaced_kmer_occurrences_" + format_number(file_number) + ".bin";
+	std::string file_path = work_dir + "/spaced_kmer_occurrences_" + format_number(thread) + "_" + format_number(file_number) + ".bin";
 	// Buffer that holds a single byte that will be written to the file
 	uint8_t bytebuffer[1];
 	// Open the file
@@ -290,6 +290,78 @@ void put_kmer_in_buffer_backward(std::vector<char> & read_vector, int ri, int to
 		}
 	}
 }
+
+void put_kmer_in_buffer_REE(std::deque<uint8_t> & long_kmer, map<__uint128_t, vector<uint8_t> > & spaced2regular, __uint128_t stored_read_spaced_kmer)
+{
+	for (int i = 0; i < long_kmer.size(); i+= 1){spaced2regular[stored_read_spaced_kmer].push_back(long_kmer[i]);}
+}
+
+
+void update_last4(std::deque< std::deque<uint8_t> > & last4longkmers, std::deque<uint8_t> & long_kmer_as_bits, int last_amigos)
+{
+	if (last4longkmers.size() < 4)
+	{
+		std::deque <uint8_t> next_long_kmer;
+		uint8_t byte = 0;
+		int nucs = 0;
+		for (int i = 0; i < long_kmer_as_bits.size(); i+=1)
+		{
+			byte<<=2;
+			byte|=long_kmer_as_bits[i];
+			nucs += 1;
+			if (nucs==4)
+			{
+				next_long_kmer.push_back(byte);
+				byte = 0;
+				nucs = 0;
+			}
+		}
+		while (nucs != 0)
+		{
+			byte<<=2;
+			nucs+=1;
+			if (nucs == 4)
+			{
+				next_long_kmer.push_back(byte);
+				byte = 0;
+				nucs = 0;
+			}
+		}
+		last4longkmers.push_back(next_long_kmer);
+	}
+	else
+	{
+		uint8_t tmp = 0;
+		last4longkmers.push_back(last4longkmers.front());
+		last4longkmers.pop_front();
+		last4longkmers.back().pop_front();
+		last4longkmers.back().pop_back();
+		last4longkmers.back().push_back(last4longkmers.at(2).at(last4longkmers.at(2).size()-2));
+		last4longkmers.back().back() <<= 2;
+		tmp = last4longkmers.at(2).back() >> 6;
+		last4longkmers.back().back() |= tmp;
+		tmp = 0;
+		int place = long_kmer_as_bits.size()-last_amigos;
+		for (int i = 0; i < 4; i += 1)
+		{
+			tmp <<= 2;
+			if (place < long_kmer_as_bits.size()){tmp |= long_kmer_as_bits.at(place);}
+			place+=1;
+
+		}
+		last4longkmers.back().push_back(tmp);
+	}
+}
+
+
+
+/*
+void update_last4rev(std::deque< std::deque<uint8_t> > & last4longkmersrev, std::deque<uint8_t> & long_kmer_as_bits_rev)
+{
+
+
+}
+*/
 
 void put_kmer_in_buffer(std::deque<uint8_t> & push_kmer, map<__uint128_t, vector<uint8_t> > & spaced2regular, __uint128_t stored_read_spaced_kmer)
 {

@@ -22,15 +22,33 @@ using namespace std;
 
 
 /*
+	Function to count fastq file lines
+*/
+int count_fastq_lines(std::string reads_path)
+{
+	std::ifstream fastq_file;
+	fastq_file.open(reads_path, std::ifstream::in);
+	std::string fastq_line;
+	int number_of_lines = 0;
+	while (std::getline(fastq_file, fastq_line, '\n')){number_of_lines+=1;}
+	return number_of_lines;
+}
+
+
+/*
 	Class for reading fastq files
 */
 
 //FastqFileReader::FastqFileReader();
 
-void FastqFileReader::initialize_me(std::string file_path)
+void FastqFileReader::initialize_me(std::string file_path, int start_position, int end_position)
 {
+	first = start_position; // included
+	last = end_position; // excluded
+	//std::cout << "START:"<< first << " END:" << last << std::endl; 
 	reads_left = true;
 	read_line = 0;
+	current_read_number = -1;
 	fastq_line = "";
 	fastq_file.open(file_path, std::ifstream::in);
 }
@@ -53,25 +71,35 @@ void FastqFileReader::roll_to_next_read()
 		// Line with the actual read encountered, it is the second line
 		if (read_line == 1)
 		{
-			for (int i = 0; i < fastq_line.length(); i++)
+			current_read_number += 1;
+			if (current_read_number >= last)
 			{
-				current_nucleotide = fastq_line.at(i);
-				if (current_nucleotide == 'C' || current_nucleotide == 'c'){push_nucleotide = 'C';}
-				else if (current_nucleotide == 'A' || current_nucleotide == 'a'){push_nucleotide = 'A';}
-				else if (current_nucleotide == 'T' || current_nucleotide == 't'){push_nucleotide = 'T';}
-				else if (current_nucleotide == 'G' || current_nucleotide == 'g'){push_nucleotide = 'G';}
-				else {push_nucleotide = 'N';}
-				current_read.push_back(push_nucleotide);
+				reads_left = false;
+				kill_me();
+				break;
 			}
-			new_read_gotten = true;
-			reads_left = true;
+
+			if (current_read_number >= first)
+			{
+				for (int i = 0; i < fastq_line.length(); i++)
+				{
+					current_nucleotide = fastq_line.at(i);
+					if (current_nucleotide == 'C' || current_nucleotide == 'c'){push_nucleotide = 'C';}
+					else if (current_nucleotide == 'A' || current_nucleotide == 'a'){push_nucleotide = 'A';}
+					else if (current_nucleotide == 'T' || current_nucleotide == 't'){push_nucleotide = 'T';}
+					else if (current_nucleotide == 'G' || current_nucleotide == 'g'){push_nucleotide = 'G';}
+					else {push_nucleotide = 'N';}
+					current_read.push_back(push_nucleotide);
+				}
+				new_read_gotten = true;
+				reads_left = true;
+			}
 		}
 		// Update line counters
 		read_line += 1;
-		if (read_line == 4)
-		{
-			read_line = 0;
-		}
+		// Reached the end of a read
+		if (read_line == 4){read_line = 0;}
+		// Break after a new read has been found
 		if (new_read_gotten){break;}
 	}
 	if (!new_read_gotten)
