@@ -15,6 +15,7 @@
 #include <vector>
 #include <deque>
 #include <random>
+#include <chrono>
 #include <math.h>
 #include "fun_kmers.hpp"
 #include "fun_consensus.hpp"
@@ -24,6 +25,7 @@
 #include "consensus_step.hpp"
 
 
+//namespace chrono = std::chrono; 
 namespace po = boost::program_options;
 namespace bfs = boost::filesystem;
 //using namespace std;
@@ -48,7 +50,7 @@ int main(int argc, char *argv[])
 
 	// Initialize arguments
 	string kmers_path, reads_path, output_path, work_dir, spaced_seed_pattern;
-	int kmer_min, buffer_size, delete_files, skip_occurrences, skip_consensus, abs_min_nuc, iterations, threads;
+	int kmer_min, buffer_size, delete_files, skip_occurrences, skip_consensus, abs_min_nuc, iterations, search_threads, consensus_threads;
 	float relative_nuc_threshold;
 
 	// Parse arguments
@@ -58,7 +60,7 @@ int main(int argc, char *argv[])
 		("help,h", "Give help")
 		("k-mers,k", po::value<std::string>(& kmers_path)->default_value("na"), "Path to the k-mer file")
 		("reads,r", po::value<std::string>(& reads_path)->default_value("na"), "Path to the read file")
-		("output,o", po::value<std::string>(& output_path)->default_value("out_default.txt"), "Path to the output file")
+		("output,o", po::value<std::string>(& output_path)->default_value(""), "Path to the output directory")
 		("work-dir,w", po::value<std::string>(& work_dir)->default_value("work_tmp"), "Path to a working directory")
 		("spaced-seed,s", po::value<std::string>(& spaced_seed_pattern)->default_value("na"), "Spaced seed pattern")
 		("min-occ,m", po::value<int>(& kmer_min)->default_value(2), "Minimum number of k-mer occurrences required")
@@ -68,7 +70,8 @@ int main(int argc, char *argv[])
 		("delete-files,d", po::value<int>(& delete_files)->default_value(0), "Delete temporary location files")
 		("skip-occurrences,f", po::value<int>(& skip_occurrences)->default_value(0), "Skip occurrence finding step")
 		("skip-consensus,c", po::value<int>(& skip_consensus)->default_value(0), "Skip consensus finding step")
-		("threads,t", po::value<int>(& threads)->default_value(1), "Threads")
+		("search-threads,t", po::value<int>(& search_threads)->default_value(1), "Search threads")
+		("consensus-threads,e", po::value<int>(& consensus_threads)->default_value(1), "Consensus threads")
 		("iterations,i", po::value<int>(& iterations)->default_value(1), "Iterations");
 
 	po::variables_map vm;
@@ -77,11 +80,21 @@ int main(int argc, char *argv[])
 
 	if (vm.count("help")) {
  		std::cout << "Print help message here" << std::endl;
-    	return 1;
+    	return 0;
 	}
+
+	int initialization_seconds, search_seconds, consensus_seconds;
+	initialization_seconds = 0;
+	search_seconds = 0;
+	consensus_seconds = 0;
+	std::chrono::high_resolution_clock::time_point start_time, end_time;
+	std::chrono::duration<double> elapsed_time;
 
 	std::cout << "Initialization started" << std::endl;
 
+	
+	//auto init_start = chrono::high_resolution_clock::now();
+	start_time = std::chrono::high_resolution_clock::now();
 
 	/*
 	 * Step 2: Check spaced seed pattern characteristics
@@ -106,11 +119,15 @@ int main(int argc, char *argv[])
 
 	std::cout << "Calculating how to split the job between threads" << std::endl;
 	int number_of_reads = (int)std::floor((double)count_fastq_lines(reads_path) / 4.0);
-	std::cout << number_of_reads << " reads are split between " << threads << " threads" << std::endl;
+	//std::cout << number_of_reads << " reads are split between " << threads << " threads" << std::endl;
+
+	end_time = std::chrono::high_resolution_clock::now();
+	elapsed_time = end_time - start_time;
+	initialization_seconds += (elapsed_time.count());
 
 	std::cout << "Initialization done" << std::endl;
 
-	std::cout << "Long k-mer extraction" << std::endl;
+	std::cout << "Long k-mer extraction started" << std::endl;
 
 	// Keep track of some stats to print at the end of the program
 	int ua = 0;
@@ -132,7 +149,13 @@ int main(int argc, char *argv[])
 		*/
 		if(skip_occurrences != 1)
 		{
-			run_search_step(work_dir, kmers_path, reads_path, buffer_size, total_length, fixed_length, character_status, kmer_min, i, iterations, threads, number_of_reads);
+			std::cout << "Search step" << std::endl;
+			start_time = std::chrono::high_resolution_clock::now();
+			run_search_step(work_dir, kmers_path, reads_path, buffer_size, total_length, fixed_length, character_status, kmer_min, i, iterations, search_threads, number_of_reads);
+			end_time = std::chrono::high_resolution_clock::now();
+			elapsed_time = end_time - start_time;
+			search_seconds += (elapsed_time.count());
+			
 		}
 
 		/*
@@ -141,7 +164,13 @@ int main(int argc, char *argv[])
 		*/
 		if (skip_consensus != 1)
 		{
+			std::cout << "Consensus step" << std::endl;
+			start_time = std::chrono::high_resolution_clock::now();
+			//tie(nua, nsa, nca) = run_consensus_step_multithread(work_dir, output_path, total_length, fixed_length, relative_nuc_threshold, abs_min_nuc, delete_files, character_status, iterations, i, consensus_threads);
 			tie(nua, nsa, nca) = run_consensus_step(work_dir, output_path, total_length, fixed_length, relative_nuc_threshold, abs_min_nuc, delete_files, character_status);
+			end_time = std::chrono::high_resolution_clock::now();
+			elapsed_time = end_time - start_time;
+			consensus_seconds += (elapsed_time.count());
 			ua += nua;
 			sa += nsa;
 			ca += nca;
@@ -154,14 +183,20 @@ int main(int argc, char *argv[])
 	 *
 	*/
 
-
 	std::cout << "################# k-mer extraction stats #################" << std::endl;
 	std::cout << "Total number of consensus k-mers: " << ua + sa + ca << std::endl;
 	std::cout << "Unambiguous consensus k-mers: " << ua << std::endl;
 	std::cout << "Simple ambiguous consensus k-mers: " << sa << std::endl;
 	std::cout << "Complex ambiguous consensus k-mers: " << ca << std::endl;
-	std::cout << "##########################################################" << std::endl;
+	std::cout << "##########################################################" << std::endl << std::endl;
 
+
+	std::cout << "################# Run time break down #################" << std::endl;
+	std::cout << "Total time (seconds): " << initialization_seconds + search_seconds + consensus_seconds << std::endl;
+	std::cout << "Initialization time (seconds): " << initialization_seconds << std::endl;
+	std::cout << "Search time (seconds): " << search_seconds << std::endl;
+	std::cout << "Consensus time (seconds): " << consensus_seconds << std::endl;
+	std::cout << "#######################################################" << std::endl << std::endl;
 
 
 	std::cout << "Program run finished successfully. Thank you for using LoMeX." << std::endl;

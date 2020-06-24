@@ -217,9 +217,13 @@ void TmpFileManager::clear_current_kmer()
 //TmpFileMerger::TmpFileMerger();
 
 
-void TmpFileMerger::initialize_me(int n_files, vector<std::string> file_paths, uint64_t spaced_length, int total_length, std::vector<bool> & character_status, int delfiles)
+void TmpFileMerger::initialize_me(int n_files, vector<std::string> file_paths, uint64_t spaced_length, int total_length, std::vector<bool> & character_status, int delfiles, int iterations, int iteration, int threads, int thread)
 {
-	kmers = n_files;
+	all_iterations = iterations;
+	my_iteration = iteration;
+	all_threads = threads;
+	my_thread = thread;
+	tmp_kmer_files = n_files;
 	kmer_remains = true;
 	fixed_length = spaced_length;
 	kmer_length = total_length;
@@ -239,16 +243,16 @@ void TmpFileMerger::initialize_me(int n_files, vector<std::string> file_paths, u
 void TmpFileMerger::delete_location_files()
 {
 	std::cout << "Deleting location files" << std::endl;
-	for(int i = 0; i < kmers; i+=1){files[i].delete_file();}
+	for(int i = 0; i < tmp_kmer_files; i+=1){files[i].delete_file();}
 }
 
 
-void TmpFileMerger::solve_next_kmer()
+bool TmpFileMerger::solve_next_kmer()
 {
 	// First find the smallest k-mer in the input files
 	__uint128_t smallest_kmer = 0;
 	bool first_in = false;
-	for (int i = 0; i<kmers; i+=1)
+	for (int i = 0; i<tmp_kmer_files; i+=1)
 	{
 		if (files[i].get_kmer_remains())
 		{
@@ -270,6 +274,7 @@ void TmpFileMerger::solve_next_kmer()
 		kmer_remains = false;
 		current_spaced_kmer = 0;
 		current_spaced_kmer_occurrences.clear();
+		return true;
 	}
 	// Otherwise update the stored smallest k-mer and its locations
 	else
@@ -278,7 +283,8 @@ void TmpFileMerger::solve_next_kmer()
 		current_spaced_kmer_string = map_int2str(current_spaced_kmer, fixed_length);
 		current_spaced_kmer_occurrences.clear();
 
-		for (int i = 0; i<kmers; i+=1)
+		//#pragma omp parallel for
+		for (int i = 0; i<tmp_kmer_files; i+=1)
 		{
 			bool file_kmer_remains = files[i].get_kmer_remains();
 			if (file_kmer_remains)
@@ -299,6 +305,12 @@ void TmpFileMerger::solve_next_kmer()
 			}
 		}
 	}
+	//(spaced_kmer - (spaced_kmer % iteration)) % threads
+	//int a;
+	//a = 
+	//int a = (int)((current_spaced_kmer - (current_spaced_kmer % my_iteration)) / (float)all_iterations);
+	if ((((current_spaced_kmer-my_iteration)/all_iterations) % all_threads) != my_thread){return false;}
+	return true;
 }
 
 tuple<std::string, std::vector<std::string> > TmpFileMerger::get_next_kmer()

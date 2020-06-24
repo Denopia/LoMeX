@@ -96,7 +96,11 @@ class TmpFileMerger
 
 private:
 	bool kmer_remains;
-	int kmers;
+	int tmp_kmer_files;
+	int my_thread;
+	int all_threads;
+	int my_iteration;
+	int all_iterations;
 	uint64_t fixed_length;
 	int kmer_length;
 	std::vector<bool> is_fixed_character;
@@ -108,11 +112,11 @@ private:
 
 public:
 
-	void initialize_me(int n_files, vector<std::string> file_paths, uint64_t spaced_length, int total_length, std::vector<bool> & character_status, int delfiles);
+	void initialize_me(int n_files, vector<std::string> file_paths, uint64_t spaced_length, int total_length, std::vector<bool> & character_status, int delfiles, int iterations, int iteration, int threads, int thread);
 
 	void delete_location_files();
 
-	void solve_next_kmer();
+	bool solve_next_kmer();
 
 	tuple<std::string, std::vector<std::string> > get_next_kmer();
 
