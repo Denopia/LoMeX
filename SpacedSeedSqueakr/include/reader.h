@@ -99,8 +99,9 @@ bool reader::fastq_read_parts(int mode, file_pointer *fp) {
 	reader& file_reader = *(fp->freader.get());
 
 	//uint32_t OVERHEAD_SIZE = 65535;
-	uint32_t OVERHEAD_SIZE = 130000;
-	uint64_t part_size = 1ULL << 25;
+	uint32_t OVERHEAD_SIZE = 131070;
+	//uint64_t part_size = 1ULL << 25;
+	uint64_t part_size = 1ULL << 29;
 	char *part = (char *)malloc((part_size + OVERHEAD_SIZE)*sizeof(char));
 	memcpy(part, part_buffer, part_filled);
 

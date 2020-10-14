@@ -28,10 +28,35 @@ std::string write_occurrences_binary(map<__uint128_t, vector<std::string> > & km
 
 
 /*
+	Write occurrences into a file
+
+	SUPPORT ONLY FOR k-MERS UP TO k = 255*4 = 1020 
+
+*/
+std::string write_occurrences_binary_dupesnt(map<__uint128_t, vector<std::string> > & kmer2occurrences, std::string work_dir, int file_number, int fixed_length, int total_length);
+
+
+/*
 	Write regular k-mers in a file as binary
 
 */
-std::string write_regular_kmers_ready_binary(map<__uint128_t, vector<uint8_t> > & spaced2regular, std::string work_dir, int file_number, int fixed_length, int total_length, int thread);
+tuple<std::string, uint64_t> write_regular_kmers_ready_binary(map<__uint128_t, vector<uint8_t> > & spaced2regular, std::string work_dir, int file_number, int fixed_length, int total_length, int thread);
+
+
+/*
+	Write regular k-mers in a file as binary (for debugging)
+
+*/
+tuple<std::string, uint64_t> write_regular_kmers_ready_binary_dupesnt_DEBUG(map<__uint128_t, vector<uint8_t> > & spaced2regular, std::string work_dir, int file_number, int fixed_length, int total_length, int thread, vector<bool> & character_status);
+
+
+/*
+	Write regular k-mers in a file as binary
+
+*/
+tuple<std::string, uint64_t> write_regular_kmers_ready_binary_dupesnt(map<__uint128_t, vector<uint8_t> > & spaced2regular, std::string work_dir, int file_number, int fixed_length, int total_length, int thread, vector<bool> & character_status);
+
+
 
 /*
 	Put regular k-mer into a buffer as bytes forward 
@@ -68,7 +93,13 @@ uint8_t map_4nucs2byte(char nucs[4]);
 /*
 	Gives a random nucleotide character
 */
-char random_nucleotide();
+char random_nucleotide_character();
+
+
+/*
+	Gives a random nucleotide integer
+*/
+uint8_t random_nucleotide_int();
 
 
 /*

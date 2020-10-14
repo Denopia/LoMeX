@@ -12,17 +12,19 @@ def orient_file(old_path, new_path):
 			#if l%10000==0:
 			#	print(l)
 			oriented_line = orient(clean_line(line))
+			#print(oriented_line)
 			wfile.write(oriented_line+"\n")
 			
 	
 def clean_line(line):
 	if line:
-		return line.split(" ")[0].strip()
+		return line.split("\t")[0].strip()
 	else:
 		return ""
 
 
 def orient(kmer):
+	#print(kmer)
 	if len(kmer) == 0:
 		return ""
 	complement = ""

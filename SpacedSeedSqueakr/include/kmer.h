@@ -35,9 +35,9 @@ class Kmer {
 														std::unordered_set<uint64_t>& kmerset, spdlog::logger* console);
 
 
-
 		static std::tuple<std::vector<bool>, int, int> get_gapped_kmer_shape(std::string kmer_shape);
-		static std::tuple<uint64_t, bool> read_gapped_kmer(std::string read_block, std::vector<bool> character_status, int block_length);
+		static std::tuple<uint64_t, bool> read_gapped_kmer(std::string  & full_read, std::vector<bool> & character_status, int start, int length);
+		//static std::tuple<uint64_t, bool> read_gapped_kmer(std::string read_block, std::vector<bool> character_status, int block_length);
 
 
 	private:

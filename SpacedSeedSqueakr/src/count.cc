@@ -101,6 +101,8 @@ bool reads_to_kmers(chunk &c, flush_object *obj, std::string gapped_kmer_pattern
 
 	std::vector<bool> character_status;
 	uint64_t total_length, fixed_length;
+
+
 	std::tie(character_status, total_length, fixed_length) = Kmer::get_gapped_kmer_shape(kmer_shape);
 
 
@@ -133,7 +135,8 @@ bool reads_to_kmers(chunk &c, flush_object *obj, std::string gapped_kmer_pattern
 				//obj->console->info(read.substr(i, total_length));
 
 
-				std::tie(gap_kmer, valid) = Kmer::read_gapped_kmer(read.substr(i, total_length), character_status, total_length);
+				std::tie(gap_kmer, valid) = Kmer::read_gapped_kmer(read, character_status, i, total_length);
+				//std::tie(gap_kmer, valid) = Kmer::read_gapped_kmer(read.substr(i, total_length), character_status, total_length);
 		
 				//obj->console->info(toBinary(gap_kmer));
 				//obj->console->info(gap_kmer);
@@ -254,7 +257,8 @@ int count_main(CountOpts &opts)
 	std::string freq_ext(".freq");
 	struct timeval start1, start2, end1, end2;
 	struct timezone tzp;
-	uint32_t OVERHEAD_SIZE = 65535;
+	//uint32_t OVERHEAD_SIZE = 65535;
+	uint32_t OVERHEAD_SIZE = 131070;
 
 	std::string filepath(opts.filenames.front());
 	auto const pos = filepath.find_last_of('.');

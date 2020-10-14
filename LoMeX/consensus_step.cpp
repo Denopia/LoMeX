@@ -23,19 +23,19 @@ using namespace std;
 tuple<int, int, int> run_consensus_step_multithread(std::string work_dir, std::string output_path, int total_length, int fixed_length, double relative_nuc_threshold, int abs_min_nuc, int delete_files, vector<bool> & character_status, int iterations, int iteration, int threads)
 {
 
-	std::cout << "Building long consensus k-mers" << std::endl;
-
+	//std::cout << "Building long consensus k-mers" << std::endl;
 	// Temporary files
 	std::vector<std::string> tmp_file_paths;
 
 	// Get all temporary file name
-	std::cout << "Finding k-mer location files" << std::endl;
+	std::cout << "Finding spaced k-mer occurrence files" << std::endl;
 	bfs::path wd{work_dir};
     if(is_directory(wd)) {
-        std::cout << wd << " is a directory containing following files:\n";
+    	std::cout << "Temp file directory found" << std::endl;
+        //std::cout << wd << " is a directory containing following files:\n";
         for(auto& entry : boost::make_iterator_range(bfs::directory_iterator(wd), {}))
         {
-            std::cout << entry << std::endl;
+            //std::cout << entry << std::endl;
             tmp_file_paths.push_back(entry.path().string());
         }
     }
@@ -94,7 +94,10 @@ tuple<int, int, int> run_consensus_step_multithread(std::string work_dir, std::s
 		// Nucleotide matrices
 		vector<int> consensus_nuc_init(total_length, -1);
 		vector<vector<int> > consensus_nucleotides(4, consensus_nuc_init);
-		int kmer_nucleotide_occurrences[4][total_length];
+		
+		vector<int> nuc_counts_init(total_length, -1);
+		vector<vector<int> > kmer_nucleotide_occurrences(4, nuc_counts_init);
+		//int kmer_nucleotide_occurrences[4][total_length];
 
 		// Reset matrices
 		for (int row = 0; row < 4; row++)
@@ -135,7 +138,7 @@ tuple<int, int, int> run_consensus_step_multithread(std::string work_dir, std::s
 
 			for (int kmerlen = 0; kmerlen < total_length; kmerlen++)
 			{
-				for (int occs = 0; occs < consensus_spaced_kmer_occurrences.size(); occs++)
+				for (int occs = 0; occs < (int)consensus_spaced_kmer_occurrences.size(); occs++)
 				{
 					curr_kmer_char = consensus_spaced_kmer_occurrences[occs].at(kmerlen);
 					if (curr_kmer_char == 'C'){kmer_nucleotide_occurrences[0][kmerlen] += 1;}
@@ -159,6 +162,8 @@ tuple<int, int, int> run_consensus_step_multithread(std::string work_dir, std::s
 			{
 				relative_threshold = absolute_min_char_count;
 			}
+
+			//relative_threshold = absolute_min_char_count; //                  RELATIVE THRESHOLD REMOVED
 
 			// Reset ambiguous positions to zero
 			for (int i = 0; i < total_length; i++)
@@ -215,7 +220,8 @@ tuple<int, int, int> run_consensus_step_multithread(std::string work_dir, std::s
 			*/
 			else if (ambiguous_count == 0)
 			{
-				unambiguous_consensus = determine_unambiguous_consensus(thread_output_file, total_length, consensus_nucleotides, unambiguous_consensus);
+				unambiguous_consensus = determine_unambiguous_consensus(thread_output_file, total_length, consensus_nucleotides, kmer_nucleotide_occurrences, unambiguous_consensus);
+				//unambiguous_consensus = determine_unambiguous_consensus(thread_output_file, total_length, consensus_nucleotides, unambiguous_consensus);
 			}
 
 			/*
@@ -225,11 +231,14 @@ tuple<int, int, int> run_consensus_step_multithread(std::string work_dir, std::s
 			*/
 			else if (ambiguous_count == 1)
 			{
-				bool unfinished_consensus = true;	
-				while(unfinished_consensus)
-				{
-					tie(simple_ambiguous_consensus, unfinished_consensus) = determine_simple_ambiguous_consensus(thread_output_file, total_length, consensus_nucleotides, simple_ambiguous_consensus);
-				}
+
+				simple_ambiguous_consensus = determine_simple_ambiguous_consensus(thread_output_file, total_length, consensus_nucleotides, kmer_nucleotide_occurrences, ambiguous_positions, simple_ambiguous_consensus);
+			
+				//bool unfinished_consensus = true;	
+				//while(unfinished_consensus)
+				//{
+				//	tie(simple_ambiguous_consensus, unfinished_consensus) = determine_simple_ambiguous_consensus(thread_output_file, total_length, consensus_nucleotides, simple_ambiguous_consensus);
+				//}
 			}
 
 			/*
@@ -241,8 +250,10 @@ tuple<int, int, int> run_consensus_step_multithread(std::string work_dir, std::s
 			{
 				vector<vector<char> > ambiguous_patterns;
 				ambiguous_patterns = extract_ambiguous_position_matrix(consensus_spaced_kmer_occurrences.size(), ambiguous_count, consensus_spaced_kmer_occurrences, ambiguous_positions, total_length);
-				complex_ambiguous_consensus = determine_complex_ambiguous_consensus(thread_output_file, total_length, consensus_nucleotides, kmer_pattern_occurrences, ambiguous_positions,
-											  										ambiguous_patterns, ambiguous_count, complex_ambiguous_consensus);
+				complex_ambiguous_consensus = determine_complex_ambiguous_consensus(thread_output_file, total_length, consensus_nucleotides, kmer_nucleotide_occurrences, kmer_pattern_occurrences, ambiguous_positions,
+										  										ambiguous_patterns, ambiguous_count, complex_ambiguous_consensus);
+				//complex_ambiguous_consensus = determine_complex_ambiguous_consensus(thread_output_file, total_length, consensus_nucleotides, kmer_pattern_occurrences, ambiguous_positions,
+				//							  										ambiguous_patterns, ambiguous_count, complex_ambiguous_consensus);
 			}
 
 consensus_cleanup:
@@ -332,10 +343,12 @@ consensus_cleanup:
 }
 
 
-tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output_path, int total_length, int fixed_length, double relative_nuc_threshold, int abs_min_nuc, int delete_files, vector<bool> & character_status)
+tuple<int, int, int, int> run_consensus_step(std::string work_dir, std::string output_path, std::string output_file_name, int total_length, int fixed_length, double relative_nuc_threshold, int abs_min_nuc, int delete_files, vector<bool> & character_status)
 {
 
-	std::cout << "Building long consensus k-mers" << std::endl;
+	int all_regular_kmers_count = 0;
+
+	//std::cout << "Building long consensus k-mers" << std::endl;
 
 	// Temporary files
 	std::vector<std::string> tmp_file_paths;
@@ -344,7 +357,11 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 	// Nucleotide matrices
 	vector<int> consensus_nuc_init(total_length, -1);
 	vector<vector<int> > consensus_nucleotides(4, consensus_nuc_init);
-	int kmer_nucleotide_occurrences[4][total_length];
+
+	vector<int> nuc_counts_init(total_length, -1);
+	vector<vector<int> > kmer_nucleotide_occurrences(4, nuc_counts_init);
+	//int kmer_nucleotide_occurrences[4][total_length];
+	
 	// k-mer strings
 	std::string current_spaced_kmer, consensus_spaced_kmer;
 	char curr_kmer_char;
@@ -364,7 +381,8 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 	// Output file
 	std::ofstream output_file;
 	// Open a file to write the k-mers
-	std::string consensus_kmers_path = output_path + "/lomex_kmers.txt";
+	//std::string consensus_kmers_path = output_path + "/lomex_kmers.txt";
+	std::string consensus_kmers_path = output_path + "/" + output_file_name;
 	// Output file
 	//std::ofstream lomex_output_file;
 	// Open a file to write the k-mers
@@ -376,25 +394,27 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 
 	bfs::path wd{work_dir};
     if(is_directory(wd)) {
-        std::cout << wd << " is a directory containing following files:\n";
+        std::cout << "Temp file directory found" << std::endl;
         for(auto& entry : boost::make_iterator_range(bfs::directory_iterator(wd), {}))
         {
-            std::cout << entry << std::endl;
+            //std::cout << entry << std::endl;
             tmp_file_paths.push_back(entry.path().string());
         }
     }
     else
     {
     	std::cout << "No directory for temporary files found" << std::endl;
-    	return make_tuple(0, 0, 0);
+    	return make_tuple(0, 0, 0, 0);
     }
+
+    // Always delete files
+	delete_files = 1;
 
     // Create file merger
     //tmp_merger.initialize_me(tmp_file_paths.size(), tmp_file_paths, fixed_length, total_length, character_status, delete_files);
 
     tmp_merger.initialize_me(tmp_file_paths.size(), tmp_file_paths, fixed_length, total_length, character_status, delete_files, 1, 0, 1, 0);
 	    
-
 	std::cout << "File merger successfully created" << std::endl;
 	
 	// Reset matrices
@@ -407,9 +427,6 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 		}
 	}
 
-	// Always delete files
-	delete_files = 1;
-
 	//while(tmp_merger.get_kmer_remains())
 	while(true)
 	{
@@ -418,17 +435,41 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 		if (!tmp_merger.get_kmer_remains()){break;}
 
 		// Debug printing
-		if (solved_kmer_counter % 10000 == 0)
+		/*
+		if (solved_kmer_counter % 100000 == 0)
 		{
 			std::cout << "Solved k-mers: " << solved_kmer_counter << std::endl;
 		}
+		*/
 		
 		solved_kmer_counter += 1;
-
 		//tie(consensus_spaced_kmer, consensus_spaced_kmer_occurrences) = tmp_merger.get_next_kmer(); // FIX THIS SO THAT IT RETURN THE DATA IN CORRECT FORM PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
 
 		consensus_spaced_kmer = tmp_merger.get_next_spaced_kmer();
 		consensus_spaced_kmer_occurrences = tmp_merger.get_next_spaced_kmer_regular_kmers();
+
+		//####################################################################
+		//####################################################################
+		//####################################################################
+		//####################################################################
+		//  DEBUG BLOCK
+		//for (auto& sunshineamigo : consensus_spaced_kmer_occurrences)
+		//{
+		//	output_file << sunshineamigo << "\n";
+		//}
+		//all_regular_kmers_count += (int)consensus_spaced_kmer_occurrences.size();
+		//continue;
+		//####################################################################
+		//####################################################################
+		//####################################################################
+		//####################################################################
+
+		// Write something random and don't solve the consensus FOR TESTING
+		//output_file << consensus_spaced_kmer;
+		//output_file << " T";
+		//output_file << '\n';
+		//continue;
+		// Block above is for test purposes
 
 		undecided_kmer = false;
 
@@ -439,7 +480,7 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 
 		for (int kmerlen = 0; kmerlen < total_length; kmerlen++)
 		{
-			for (int occs = 0; occs < consensus_spaced_kmer_occurrences.size(); occs++)
+			for (int occs = 0; occs < (int)consensus_spaced_kmer_occurrences.size(); occs++)
 			{
 				curr_kmer_char = consensus_spaced_kmer_occurrences[occs].at(kmerlen);
 				if (curr_kmer_char == 'C'){kmer_nucleotide_occurrences[0][kmerlen] += 1;}
@@ -464,6 +505,9 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 			relative_threshold = absolute_min_char_count;
 		}
 
+		//RELATIVE THRESHOLD REMOVER
+		//relative_threshold = absolute_min_char_count; 
+
 		// Reset ambiguous positions to zero
 		for (int i = 0; i < total_length; i++)
 		{
@@ -477,13 +521,14 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 		// Loop through all spaced k-mer positions
 		for (int consensus_i = 0; consensus_i < total_length; consensus_i++)
 		{
-			trusted_nucs = 0; // Reset trusted nucleotides
+			trusted_nucs = 0; // Reset the number of trusted nucleotides
 			// Loop through all 4 nucleotides
 			for (int nuc_i = 0; nuc_i < 4; nuc_i++)
 			{
 				if (kmer_nucleotide_occurrences[nuc_i][consensus_i] >= relative_threshold)
 				{
-					consensus_nucleotides[nuc_i][consensus_i] = 1;
+					consensus_nucleotides[nuc_i][consensus_i] = kmer_nucleotide_occurrences[nuc_i][consensus_i];
+					//consensus_nucleotides[nuc_i][consensus_i] = 1;
 					trusted_nucs += 1;
 				}
 				if (trusted_nucs == 2)
@@ -497,7 +542,6 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 			if (trusted_nucs == 0)
 			{
 				undecided_kmer = true;
-			
 			}
 		}
 
@@ -511,7 +555,6 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 			goto consensus_cleanup;
 		}
 
-
 		/*
 			-- First case: unambiguous consensus --
 
@@ -519,7 +562,7 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 		*/
 		else if (ambiguous_count == 0)
 		{
-			unambiguous_consensus = determine_unambiguous_consensus(output_file, total_length, consensus_nucleotides, unambiguous_consensus);
+			unambiguous_consensus = determine_unambiguous_consensus(output_file, total_length, consensus_nucleotides, kmer_nucleotide_occurrences, unambiguous_consensus);
 		}
 
 		/*
@@ -529,11 +572,13 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 		*/
 		else if (ambiguous_count == 1)
 		{
-			bool unfinished_consensus = true;	
-			while(unfinished_consensus)
-			{
-				tie(simple_ambiguous_consensus, unfinished_consensus) = determine_simple_ambiguous_consensus(output_file, total_length, consensus_nucleotides, simple_ambiguous_consensus);
-			}
+			simple_ambiguous_consensus = determine_simple_ambiguous_consensus(output_file, total_length, consensus_nucleotides, kmer_nucleotide_occurrences, ambiguous_positions, simple_ambiguous_consensus);
+			
+			//bool unfinished_consensus = true;	
+			//while(unfinished_consensus)
+			//{
+			//	tie(simple_ambiguous_consensus, unfinished_consensus) = determine_simple_ambiguous_consensus(output_file, total_length, consensus_nucleotides, kmer_nucleotide_occurrences, simple_ambiguous_consensus);
+			//}
 		}
 
 		/*
@@ -545,7 +590,7 @@ tuple<int, int, int> run_consensus_step(std::string work_dir, std::string output
 		{
 			vector<vector<char> > ambiguous_patterns;
 			ambiguous_patterns = extract_ambiguous_position_matrix(consensus_spaced_kmer_occurrences.size(), ambiguous_count, consensus_spaced_kmer_occurrences, ambiguous_positions, total_length);
-			complex_ambiguous_consensus = determine_complex_ambiguous_consensus(output_file, total_length, consensus_nucleotides, kmer_pattern_occurrences, ambiguous_positions,
+			complex_ambiguous_consensus = determine_complex_ambiguous_consensus(output_file, total_length, consensus_nucleotides, kmer_nucleotide_occurrences, kmer_pattern_occurrences, ambiguous_positions,
 										  										ambiguous_patterns, ambiguous_count, complex_ambiguous_consensus);
 		}
 
@@ -565,13 +610,13 @@ consensus_cleanup:
 	output_file.close(); // close file
 	output_file.clear(); // clear flags	
 
-	std::cout << "-- Printing consensus k-mer stats --" << std::endl;
-	std::cout << "Total number of consensus k-mers: " << unambiguous_consensus + simple_ambiguous_consensus + complex_ambiguous_consensus << std::endl;
-	std::cout << "Unambiguous consensus k-mers: " << unambiguous_consensus << std::endl;
-	std::cout << "Simple ambiguous consensus k-mers: " << simple_ambiguous_consensus << std::endl;
-	std::cout << "Complex ambiguous consensus k-mers: " << complex_ambiguous_consensus << std::endl;
+	std::cout << "** Consensus k-mer stats for this iteration**" << std::endl;
+	std::cout << "1) Total number of consensus k-mers: " << unambiguous_consensus + simple_ambiguous_consensus + complex_ambiguous_consensus << std::endl;
+	std::cout << "2) Unambiguous consensus k-mers: " << unambiguous_consensus << std::endl;
+	std::cout << "3) Simple ambiguous consensus k-mers: " << simple_ambiguous_consensus << std::endl;
+	std::cout << "4) Complex ambiguous consensus k-mers: " << complex_ambiguous_consensus << std::endl;
 
-	return make_tuple(unambiguous_consensus, simple_ambiguous_consensus, complex_ambiguous_consensus);
+	return make_tuple(unambiguous_consensus, simple_ambiguous_consensus, complex_ambiguous_consensus, all_regular_kmers_count);
 
 	//return 0;
 }

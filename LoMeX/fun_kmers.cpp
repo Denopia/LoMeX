@@ -28,6 +28,7 @@ char map_int2nuc(uint8_t nuc)
 		case NUC_MAP::C: {return 'C';}
 		case NUC_MAP::G: {return 'G';}
 		default: {return NUC_MAP::G+1;}
+		//default: {std::cout << "WEIRD THING 1" << std::endl; return NUC_MAP::G+1;}
 	}
 }
 
@@ -41,6 +42,7 @@ uint8_t map_nuc2int(char nuc)
 		case 'C': {return NUC_MAP::C;}
 		case 'G': {return NUC_MAP::G;}
 		default: {return NUC_MAP::G+1;}
+		//default: {std::cout << "WEIRD THING 2" << std::endl; return NUC_MAP::G+1;}
 	}
 }
 
@@ -96,12 +98,6 @@ void map_str2intR(std::string & seq, __uint128_t & bin_seq)
 
 
 
-
-
-
-
-
-
 // Idea from Squeakr
 int reverse_complement_nucint(int nuc)
 { 
@@ -125,7 +121,7 @@ __uint128_t reverse_complement_seqint(__uint128_t seq, uint64_t len)
 {
 	__uint128_t rev_seq = 0;
 	uint8_t nuc = 0;
-	for (uint32_t i = 0; i < len; i++) {
+	for (uint64_t i = 0; i < len; i++) {
 		nuc = seq & 3ULL; // 3 unsigned long long
 		nuc = reverse_complement_nucint(nuc);
 		seq >>= 2;
@@ -139,12 +135,13 @@ __uint128_t reverse_complement_seqint(__uint128_t seq, uint64_t len)
 
 
 // Slow, where is this used?
-string reverse_complement_seqstr(string seq)
+string reverse_complement_seqstr(std::string seq)
 {
 	string rev_seq = "";
 	char cur_char, rev_char;
+	int seqlen = (int)seq.length();
 
-	for(int i = 0; i < seq.length(); i++)
+	for(int i = 0; i < seqlen; i++)
 	{
 		cur_char = seq.at(i);
 		rev_char = reverse_complement_nucchar(cur_char);
@@ -156,12 +153,13 @@ string reverse_complement_seqstr(string seq)
 
 bool compare_seqs(__uint128_t seq1, __uint128_t seq2)
 {
-	return seq1 >= seq2;
+	return seq1 <= seq2;
 }
 
 bool compare_seqs_string(std::string seq1, std::string seq2)
 {
-	for (int i = 0; i < seq1.length(); i+= 1)
+	int seqlen = (int)seq1.length();
+	for (int i = 0; i < seqlen; i+= 1)
 	{
 		if (seq1[i] < seq2[i]){return true;}
 		if (seq2[i] < seq1[i]){return false;}
@@ -234,12 +232,31 @@ std::tuple< std::vector<bool>, int, int, std::vector<int>, std::vector<int>, std
 std::string extract_spaced_kmer(std::string long_kmer, std::vector<bool> & is_fixed_character)
 {
 	std::string spaced_kmer = "";
-	for (int i = 0; i < is_fixed_character.size(); i++)
+	
+	//std::cout << "SPACED K-MER EXTRACTION FROM ITS OCCURRENCE" << std::endl;
+	//std::cout << "LONG K-MER IS BELOW" << std::endl;
+	//std::cout << long_kmer << std::endl;
+
+	int veclen = (int)is_fixed_character.size();
+	//std::cout << "OCCURRENCE LENGTH IS: " << veclen << std::endl;
+
+	//std::cout << "PRINTING SPACED SEED BELOW" << std::endl;
+
+	for (int i = 0; i < veclen; i++)
 	{
 		if (is_fixed_character[i])
 		{
+			//std::cout << "1";
 			spaced_kmer = spaced_kmer +	long_kmer.at(i);
 		}
+		//else
+		//{
+		//	std::cout << "0";
+		//}
 	}
+	//std::cout << std::endl;
+	//std::cout << "AND THE EXTRACTED SPACED K-MER IS BELOW" << std::endl;
+	//std::cout << spaced_kmer << std::endl;
+
 	return spaced_kmer;
 }

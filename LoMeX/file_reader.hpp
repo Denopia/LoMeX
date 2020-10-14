@@ -61,17 +61,23 @@ private:
 	std::ifstream location_file;
 	std::vector<bool> is_fixed_character;
 	std::string current_spaced_kmer_string;
+	std::string current_spaced_kmer_string_from_file;
 	__uint128_t current_spaced_kmer_int;
 	vector<std::string> current_kmer_occurrences_string;
 	std::string my_file_path;
+	uint64_t fixed_length;
 	
 public:
 
-	TmpFileManager(int n, std::string path, int total_length, std::vector<bool> & character_status, int delfile);
+	TmpFileManager(int n, std::string path, int total_length, std::vector<bool> & character_status, int delfile, uint64_t fixed_length_to_save);
 
 	void read_file_info();
 
 	void read_next_line();
+
+	void read_next_line_dupesnt();
+
+	void read_next_line_dupesnt_DEBUG();
 
 	void close_file();
 
@@ -106,9 +112,11 @@ private:
 	std::vector<bool> is_fixed_character;
 	int cleanup;
 	__uint128_t current_spaced_kmer;
+	__uint128_t previous_spaced_kmer;
 	std::string current_spaced_kmer_string;
 	std::vector<std::string> current_spaced_kmer_occurrences;
 	std::vector<TmpFileManager> files;
+	int my_spaced_kmers;
 
 public:
 

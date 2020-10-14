@@ -10,7 +10,7 @@ using namespace std;
 
 
 
-void run_search_step(std::string work_dir, std::string kmers_path, std::string reads_path, int buffer_size, int total_length, int fixed_length, vector<bool> & character_status, int kmer_min, int curite, int maxite, int threads, int number_of_reads);
+tuple<uint64_t, int> run_search_step(std::string work_dir, std::string kmers_path, std::string reads_path, int buffer_size, int total_length, int fixed_length, vector<bool> & character_status, int kmer_min, int curite, int maxite, int threads, int number_of_reads);
 
 
 #endif

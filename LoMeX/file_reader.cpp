@@ -51,6 +51,7 @@ void FastqFileReader::initialize_me(std::string file_path, int start_position, i
 	current_read_number = -1;
 	fastq_line = "";
 	fastq_file.open(file_path, std::ifstream::in);
+
 }
 
 void FastqFileReader::kill_me()
@@ -81,7 +82,8 @@ void FastqFileReader::roll_to_next_read()
 
 			if (current_read_number >= first)
 			{
-				for (int i = 0; i < fastq_line.length(); i++)
+				int linelen = fastq_line.length();
+				for (int i = 0; i < linelen; i++)
 				{
 					current_nucleotide = fastq_line.at(i);
 					if (current_nucleotide == 'C' || current_nucleotide == 'c'){push_nucleotide = 'C';}
@@ -114,31 +116,33 @@ void FastqFileReader::roll_to_next_read()
 /*
 	Class for handling a single temporary k-mer file
 */
-TmpFileManager::TmpFileManager(int n, std::string path, int total_length, std::vector<bool> & character_status, int delfile)
+TmpFileManager::TmpFileManager(int n, std::string path, int total_length, std::vector<bool> & character_status, int delfile, uint64_t fixed_length_to_save)
 {
+	fixed_length = fixed_length_to_save;
 	is_fixed_character = character_status;
+	current_spaced_kmer_int = 0;
+	current_spaced_kmer_string = "EMPTY SPACED K-MER1";
+	current_spaced_kmer_string_from_file = "EMPTY SPACED K-MER2";
 	kmer_remains = true;
 	kmer_length = total_length;
 	my_file_path = path;
 	sudoku = delfile;
 	location_file.open(path, ios::in | ios::binary);
 	read_file_info();
-	read_next_line();	
+	read_next_line_dupesnt();
+	//read_next_line();
 }
 
 void TmpFileManager::read_file_info()
 {	
 	location_file.read((char*)(&occurrence_bytes), sizeof(occurrence_bytes));
+	//std::cout << "BYTES PER K-MER IS: " << occurrence_bytes << std::endl;
 }
 
 
 void TmpFileManager::read_next_line()
 {
 	clear_current_kmer();
-
-	//std::string debug_last_spaced_kmer = "";
-	//td::string debug_kmer = "";
-
 	if (!kmer_remains){return;}
 
 	int32_t kmer_occurrences = 0;
@@ -167,25 +171,180 @@ void TmpFileManager::read_next_line()
 		}
 		current_kmer_occurrence_string = current_kmer_occurrence_string.substr(0, kmer_length);
 		current_kmer_occurrences_string.push_back(current_kmer_occurrence_string);
-
-		// DEBUGGING, can be removed if no problems occur soon
-		//debug_kmer = extract_spaced_kmer(current_kmer_occurrence_string, is_fixed_character);
-		//if (debug_last_spaced_kmer.length() == 0){debug_last_spaced_kmer = debug_kmer;}
-		//else 
-		//{
-		//	if (debug_last_spaced_kmer.compare(debug_kmer) != 0)
-		//	{
-		//		std::cout << debug_last_spaced_kmer << std::endl;
-		//		std::cout << debug_kmer << std::endl;
-		//		std::cout << "ERROR WITH BINARY STORED REGULAR K-MERS !!!!";
-		//		exit(9);
-		//	}
-		//}
 	}
 	current_spaced_kmer_string = extract_spaced_kmer(current_kmer_occurrences_string[0], is_fixed_character);
 	current_spaced_kmer_int = map_str2int(current_spaced_kmer_string);
 }
 
+
+void TmpFileManager::read_next_line_dupesnt()
+{
+	__uint128_t previous_spaced_kmer_int = current_spaced_kmer_int;
+	
+	clear_current_kmer();
+	if (!kmer_remains){return;}
+	
+	int32_t kmer_occurrences = 0;
+	location_file.read((char*) (&kmer_occurrences), sizeof(kmer_occurrences));
+
+	if(kmer_occurrences == 0)
+	{
+		close_file();
+		if (sudoku == 1)
+		{
+			delete_file();
+		}
+		//std::cout << "FILE ENDS HERE" << std::endl;
+		return;
+	}
+
+	// NEW STUFF
+	//location_file.read((char*) (&spaced_kmer_from_file), sizeof(spaced_kmer_from_file));
+
+	uint8_t occbyte = 0;
+	int32_t regular_kmer_count = 0;
+
+	int regular_kmer_count_readable;
+	std::string current_kmer_occurrence_string;
+
+	for (int occi = 0; occi < kmer_occurrences; occi+=1)
+	{
+		current_kmer_occurrence_string = "";
+		for (int occb = 0; occb < occurrence_bytes; occb+=1)
+		{
+			location_file.read((char*) (&occbyte), sizeof(occbyte));
+			current_kmer_occurrence_string = current_kmer_occurrence_string + map_byte2fournucs(occbyte);
+		}
+		// How many times does it occur
+		location_file.read((char*) (&regular_kmer_count), sizeof(regular_kmer_count));
+		regular_kmer_count_readable = static_cast<int>(regular_kmer_count);
+		
+		current_kmer_occurrence_string = current_kmer_occurrence_string.substr(0, kmer_length);
+
+		for (int addi = 0; addi < regular_kmer_count_readable; addi+=1)
+		{
+			current_kmer_occurrences_string.push_back(current_kmer_occurrence_string);
+		}
+	}
+	
+	current_spaced_kmer_string = extract_spaced_kmer(current_kmer_occurrences_string[0], is_fixed_character);
+	current_spaced_kmer_int = map_str2int(current_spaced_kmer_string);
+
+	if (current_spaced_kmer_int < previous_spaced_kmer_int)
+	{
+		std::cout << "READING SPACED K-MERS IN WRONG ORDER!!! AYAYA !!" << std::endl;
+	}
+}
+
+void TmpFileManager::read_next_line_dupesnt_DEBUG()
+{
+	__uint128_t previous_spaced_kmer_int = current_spaced_kmer_int;
+	std::string previous_spaced_kmer_str = current_spaced_kmer_string;
+	std::string previous_spaced_kmer_str_from_file = current_spaced_kmer_string_from_file;
+
+	std::string loop_test_string = "SUNSHINEAMIGO";
+
+	__uint128_t spaced_kmer_from_file;
+	
+	clear_current_kmer();
+	if (!kmer_remains){return;}
+	
+	int32_t kmer_occurrences = 0;
+	location_file.read((char*) (&kmer_occurrences), sizeof(kmer_occurrences));
+
+	//std::cout << "SPACED K-MER HAS THIS MANY OCCURRENCES: " << kmer_occurrences << std::endl;
+	
+	if(kmer_occurrences == 0)
+	{
+		close_file();
+		if (sudoku == 1)
+		{
+			delete_file();
+		}
+		std::cout << "FILE ENDS HERE" << std::endl;
+		return;
+	}
+
+	// NEW STUFF
+	location_file.read((char*) (&spaced_kmer_from_file), sizeof(spaced_kmer_from_file));
+
+	uint8_t occbyte = 0;
+	int32_t regular_kmer_count = 0;
+
+	int regular_kmer_count_readable;
+	std::string current_kmer_occurrence_string;
+
+	for (int occi = 0; occi < kmer_occurrences; occi+=1)
+	{
+		current_kmer_occurrence_string = "";
+		for (int occb = 0; occb < occurrence_bytes; occb+=1)
+		{
+			//location_file.read((char*) & bytebuffer, 1);
+			//occbyte = bytebuffer[0];
+
+			location_file.read((char*) (&occbyte), sizeof(occbyte));
+			
+			current_kmer_occurrence_string = current_kmer_occurrence_string + map_byte2fournucs(occbyte);
+		}
+		// How many times does it occur
+		location_file.read((char*) (&regular_kmer_count), sizeof(regular_kmer_count));
+		regular_kmer_count_readable = static_cast<int>(regular_kmer_count);
+		if (regular_kmer_count_readable <= 0)
+		{
+			std::cout << "OMG ERROR ERROR I READ ZERO COUNT FOR A K-MER!!!!!!! XPOTATO " << regular_kmer_count_readable << std::endl;
+		}
+	
+		current_kmer_occurrence_string = current_kmer_occurrence_string.substr(0, kmer_length);
+
+		if (loop_test_string == "SUNSHINEAMIGO")
+		{
+			loop_test_string = extract_spaced_kmer(current_kmer_occurrence_string, is_fixed_character);
+		}
+		else
+		{
+			if (loop_test_string != extract_spaced_kmer(current_kmer_occurrence_string, is_fixed_character))
+			{
+				std::cout << "SPACED K-MER HAS WRONG OCCURRENCES!!!!! SONNA !!!!" << std::endl;
+			}
+			loop_test_string = extract_spaced_kmer(current_kmer_occurrence_string, is_fixed_character);
+		}
+
+		for (int addi = 0; addi < regular_kmer_count_readable; addi+=1)
+		{
+			current_kmer_occurrences_string.push_back(current_kmer_occurrence_string);
+		}
+	}
+	current_spaced_kmer_string = extract_spaced_kmer(current_kmer_occurrences_string[0], is_fixed_character);
+	current_spaced_kmer_int = map_str2int(current_spaced_kmer_string);
+
+	std::string current_spaced_kmer_string_from_file = map_int2str(spaced_kmer_from_file, fixed_length);
+
+
+	if (current_spaced_kmer_int != spaced_kmer_from_file)
+	{
+		std::cout << "TMP FILE AND EXTRACTED ARE DIFFERENT !!!!!!!! DESUDESU" << std::endl;
+		std::cout << "EXTRACTED IS BELOW" << std::endl;
+		std::cout << current_spaced_kmer_string << std::endl;
+		std::cout << "FROM FILE IS BELOW" << std::endl;
+		std::cout << current_spaced_kmer_string_from_file << std::endl;
+		std::cout << "PREVIOUS DIRECTLY FROM FILE IS BELOW" << std::endl;
+		std::cout << previous_spaced_kmer_str_from_file << std::endl;
+		std::cout << "OCCURRENCES FOR CURRENT SPACED K-MER ARE: " << current_kmer_occurrences_string.size() << std::endl;
+	}
+	else
+	{
+		current_spaced_kmer_int = spaced_kmer_from_file;
+	}
+
+	if (current_spaced_kmer_int < previous_spaced_kmer_int)
+	{
+		std::cout << "READING SPACED K-MERS IN WRONG ORDER!!! AYAYA !!" << std::endl;
+		std::cout << "CURRENT IS BELOW" << std::endl;
+		std::cout << current_spaced_kmer_string << std::endl;
+		std::cout << "PREVIOUS IS BELOW" << std::endl;
+		std::cout << previous_spaced_kmer_str << std::endl;
+	}
+}
 
 void TmpFileManager::close_file()
 {
@@ -198,8 +357,8 @@ void TmpFileManager::delete_file()
 {
 	const char * removed_file = my_file_path.c_str();
 	int removed = remove(removed_file);
-	if (removed == 0) {std::cout << "Location file " << my_file_path << " permanently deleted" << std::endl;}
-	else {std::cout << "Location file deletion was unsuccessful for some reason..." << std::endl;}
+	//if (removed == 0) {std::cout << "Location file " << my_file_path << " permanently deleted" << std::endl;}
+	//else {std::cout << "Location file deletion was unsuccessful for some reason..." << std::endl;}
 }
 
 void TmpFileManager::clear_current_kmer()
@@ -229,12 +388,14 @@ void TmpFileMerger::initialize_me(int n_files, vector<std::string> file_paths, u
 	kmer_length = total_length;
 	is_fixed_character = character_status;
 	cleanup = delfiles;
+	previous_spaced_kmer = 0;
+	my_spaced_kmers = 0;
 
 	for (int i = 0; i < n_files; i+=1)
 	{
 		if (boost::algorithm::ends_with(file_paths[i], ".bin"))
 		{	
-			files.push_back(TmpFileManager(i, file_paths[i], kmer_length, is_fixed_character, cleanup));
+			files.push_back(TmpFileManager(i, file_paths[i], kmer_length, is_fixed_character, cleanup, static_cast<uint64_t>(fixed_length)));
 		}
 	}
 	//solve_next_kmer();
@@ -250,8 +411,10 @@ void TmpFileMerger::delete_location_files()
 bool TmpFileMerger::solve_next_kmer()
 {
 	// First find the smallest k-mer in the input files
+	//std::cout << "SOLVING NEXT K-MER" << std::endl;
 	__uint128_t smallest_kmer = 0;
 	bool first_in = false;
+
 	for (int i = 0; i<tmp_kmer_files; i+=1)
 	{
 		if (files[i].get_kmer_remains())
@@ -268,17 +431,27 @@ bool TmpFileMerger::solve_next_kmer()
 			}
 		}
 	}
+
+	if (smallest_kmer < previous_spaced_kmer)
+	{
+		std::cout << "FATAL ERROR IN READING SPACED K-MERS FROM TEMP FILES" << std::endl;
+	}
+	previous_spaced_kmer = smallest_kmer;
+
 	// If no file has more k-mers, take note
 	if (!first_in)
 	{
 		kmer_remains = false;
 		current_spaced_kmer = 0;
 		current_spaced_kmer_occurrences.clear();
+		std::cout << "NO MORE SPACED K-MERS LEFT IN TEMP FILES" << std::endl;
+		std::cout << "I HAD THIS MANY SPACED K-MERS: " << my_spaced_kmers << std::endl;
 		return true;
 	}
 	// Otherwise update the stored smallest k-mer and its locations
 	else
 	{
+		my_spaced_kmers += 1;
 		current_spaced_kmer = smallest_kmer;
 		current_spaced_kmer_string = map_int2str(current_spaced_kmer, fixed_length);
 		current_spaced_kmer_occurrences.clear();
@@ -286,6 +459,7 @@ bool TmpFileMerger::solve_next_kmer()
 		//#pragma omp parallel for
 		for (int i = 0; i<tmp_kmer_files; i+=1)
 		{
+			//std::cout << "DOING THIS LOOP" << std::endl;
 			bool file_kmer_remains = files[i].get_kmer_remains();
 			if (file_kmer_remains)
 			{
@@ -300,7 +474,8 @@ bool TmpFileMerger::solve_next_kmer()
 					{
 						current_spaced_kmer_occurrences.push_back(append_occurrences[info_counter]);
 					}
-					files[i].read_next_line();
+					files[i].read_next_line_dupesnt();
+					//files[i].read_next_line();
 				}
 			}
 		}
@@ -309,8 +484,38 @@ bool TmpFileMerger::solve_next_kmer()
 	//int a;
 	//a = 
 	//int a = (int)((current_spaced_kmer - (current_spaced_kmer % my_iteration)) / (float)all_iterations);
-	if ((((current_spaced_kmer-my_iteration)/all_iterations) % all_threads) != my_thread){return false;}
+
 	return true;
+
+	// ABSOLUTE MESS, FIX THIS LATER
+
+	std::cout << "OK??" << std::endl;
+
+	int tester = (int)current_spaced_kmer;
+	if (tester < 0){tester = 0 - tester;}
+	std::cout << "OK??2" << std::endl;
+
+	if (tester % all_iterations == my_iteration){
+		int tester2 = (int)((tester - (tester % my_iteration)) / all_iterations);
+
+		std::cout << "OK??3" << std::endl;
+		if(tester2 < 0){tester2 = 0 - tester2;}
+		if (tester2 % all_threads == my_thread){
+			std::cout << "OK??4" << std::endl;
+			return true;
+		} else {
+			return false;
+		}
+
+
+	} else {
+		std::cout << "FATAL ERROR IN FILE READER" << std::endl;
+		return false;
+	}
+
+	//if ((((current_spaced_kmer-my_iteration)/all_iterations) % all_threads) != my_thread){return false;}
+	//std::cout << "NEXT K-MER SOLVED" << std::endl;
+	//return true;
 }
 
 tuple<std::string, std::vector<std::string> > TmpFileMerger::get_next_kmer()

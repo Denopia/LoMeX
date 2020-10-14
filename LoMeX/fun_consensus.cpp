@@ -23,16 +23,17 @@ char NUC_ARRAY[4] = {'C', 'A', 'T', 'G'};
 
 
 
-int determine_unambiguous_consensus(std::ofstream& output_file, int pattern_length, vector<vector<int> > &consensus_nucleotides, int unambiguous_counter)
+int determine_unambiguous_consensus(std::ofstream& output_file, int pattern_length, vector<vector<int> > &consensus_nucleotides, vector<vector<int> >& kmer_nucleotide_occurrences, int unambiguous_counter)
 {
 	std::string ua_kmer = "";
+	double reg_kmer_count = 0;
 	// Loop through all pattern positions
 	for (int i = 0; i < pattern_length; i++)
 	{
 		// Loop through the four possible nucleotides (one of which is marked with 1)
 		for (int j = 0; j < 4; j++)
 		{
-			if (consensus_nucleotides[j][i] == 1)
+			if (consensus_nucleotides[j][i] > 1)
 			{
 				//std::cout << NUC_ARRAY[j];
 				//output_file << NUC_ARRAY[j];
@@ -41,6 +42,10 @@ int determine_unambiguous_consensus(std::ofstream& output_file, int pattern_leng
 			}
 		}
 	}
+
+	// Get k-mer count
+	for (int i = 0; i < 4; i++){reg_kmer_count+=kmer_nucleotide_occurrences[i][0];}
+
 	//std::cout << std::endl;
 
 	//std::string ua_kmer_rev = reverse_complement_seqstr(ua_kmer);
@@ -48,60 +53,80 @@ int determine_unambiguous_consensus(std::ofstream& output_file, int pattern_leng
 	//else{output_file << ua_kmer_rev;}
 
 	output_file << ua_kmer;
-	output_file << " U";
+	//output_file << " U ";
+	output_file << " ";
+	output_file << reg_kmer_count;
 	output_file << '\n';
 
 	return unambiguous_counter+1;
 }
 
 // Called multiple times, make it work as a single-callable function?
-tuple<int, bool> determine_simple_ambiguous_consensus(std::ofstream& output_file, int pattern_length, vector<vector<int> > &consensus_nucleotides, int simple_ambiguous_counter)
+int determine_simple_ambiguous_consensus(std::ofstream& output_file, int pattern_length, vector<vector<int> > &consensus_nucleotides, vector<vector<int> > &kmer_nucleotide_occurrences, int ambiguous_positions[], int simple_ambiguous_counter)
 {
-	std::string sa_kmer = "";
-	bool rerun_required = false; // Flag to show if another consensus k-mer can be found after this one
-	// Loop through all pattern positions
-	for (int i = 0; i < pattern_length; i++)
-			{
-				int printed_nuc = -1; // Store the printed nuclotide integer here
-				// Loop through the four possible nucleotides (one of which is marked with 1)
-				for (int j = 0; j < 4; j++)
-				{
-					if (consensus_nucleotides[j][i] == 1)
-					{
-						// If a nucleotide has already been printed for this position
-						if (printed_nuc > -1)
-						{
-							// Rerun is needed
-							rerun_required = true;
-							// The printed nucleotide in an ambiguous position can be ignored in the future
-							consensus_nucleotides[printed_nuc][i] = 0;
-						}
-						// If a nucleotide has not been printed already for this position
-						else
-						{
-							//std::cout << NUC_ARRAY[j];
-							//output_file << NUC_ARRAY[j];
-							sa_kmer = sa_kmer + NUC_ARRAY[j];
-							printed_nuc = j;
-						}
-					}
-				}
-			}
-			//std::cout << std::endl;
-			
-			//std::string sa_kmer_rev = reverse_complement_seqstr(sa_kmer);
-			//if (compare_seqs_string(sa_kmer, sa_kmer_rev)){output_file << sa_kmer;}
-			//else{output_file << sa_kmer_rev;}
-			
-			output_file << sa_kmer;
-			output_file << " S";
-			output_file << '\n';
 
-	return make_tuple(simple_ambiguous_counter+1, rerun_required);
+	// Build any k-mer first
+	std::string sa_kmer = "";
+	for (int i = 0; i < pattern_length; i++)
+	{
+		for (int j = 0; j < 4; j++)
+		{
+			if (consensus_nucleotides[j][i] > 1)
+			{
+				sa_kmer = sa_kmer + NUC_ARRAY[j];
+				break;
+			}
+		}
+	}
+
+	// Find the ambiguous position
+	int ambipos = -1;
+	for (int i = 0; i < pattern_length; i++)
+	{
+		if (ambiguous_positions[i] == 1)
+		{
+			ambipos = i;
+			break;
+		}
+	}
+
+	// Count all regular k-mers
+	double reg_kmer_count = 0;
+	for (int i = 0; i < 4; i++){reg_kmer_count+=kmer_nucleotide_occurrences[i][0];}
+
+	// Count used regular k-mers
+	double used_reg_kmer_count = 0;
+	int kmers2write = 0;
+	for (int i = 0; i < 4; i++)
+	{
+		if(consensus_nucleotides[i][ambipos] > 1)
+		{
+			used_reg_kmer_count += consensus_nucleotides[i][ambipos];
+			kmers2write += 1;
+		}
+	}
+
+	double leftover_count = (reg_kmer_count - used_reg_kmer_count) / kmers2write;
+
+	// Write all k-mers
+	for (int i = 0; i < 4; i++)
+	{
+		if(consensus_nucleotides[i][ambipos] > 1)
+		{
+			sa_kmer.replace(ambipos, 1, std::string(1,NUC_ARRAY[i]));
+			output_file << sa_kmer;
+			double writecount = (double)kmer_nucleotide_occurrences[i][ambipos] + leftover_count;
+			//output_file << " S ";
+			output_file << " ";
+			output_file << writecount;
+			output_file << '\n';
+		}
+	}
+	return simple_ambiguous_counter + kmers2write;
 }
 
 
-int determine_complex_ambiguous_consensus(std::ofstream& output_file, int pattern_length, vector<vector<int> > &consensus_nucleotides, int occurrences,  int ambiguous_positions[],
+int determine_complex_ambiguous_consensus(std::ofstream& output_file, int pattern_length, vector<vector<int> > &consensus_nucleotides, vector<vector<int> > &kmer_nucleotide_occurrences, int occurrences,  int ambiguous_positions[],
 										  vector<vector<char> > &ambiguous_patterns, int ambiguous_count, int complex_ambiguous_counter)
 {
 	std::string ca_kmer_rev;
@@ -112,6 +137,12 @@ int determine_complex_ambiguous_consensus(std::ofstream& output_file, int patter
 	int ambiguous_position_matches;
 	bool is_a_match;
 	bool usable_kmer;
+
+	int write_kmers = 0;
+	std::vector<std::string> kmers2write;
+	std::vector<double> counts2write;
+
+	double used_reg_kmer_count = 0;
 
 	// Array to store if an occurrence has already been used to fill in the ambiguous character positions 
 	int used[occurrences];
@@ -180,7 +211,7 @@ int determine_complex_ambiguous_consensus(std::ofstream& output_file, int patter
 				// If position is unambiguous, print the unambiguous character from consensus nucleotide matrix
 				for (int nuc = 0; nuc < 4; nuc++)
 				{
-					if (consensus_nucleotides[nuc][patt_pos] == 1)
+					if (consensus_nucleotides[nuc][patt_pos] > 0)
 					{
 						//std::cout << NUC_ARRAY[nuc];
 						//output_file << NUC_ARRAY[nuc];
@@ -191,17 +222,37 @@ int determine_complex_ambiguous_consensus(std::ofstream& output_file, int patter
 
 			if(usable_kmer)
 			{
+				kmers2write.push_back(ca_kmer);
+				counts2write.push_back((double)ambiguous_position_matches + 1);
+				write_kmers += 1;
+				used_reg_kmer_count += (double)ambiguous_position_matches + 1;
 				//ca_kmer_rev = reverse_complement_seqstr(ca_kmer);
 				//if (compare_seqs_string(ca_kmer, ca_kmer_rev)){output_file << ca_kmer;}
 				//else{output_file << ca_kmer_rev;}
-				output_file << ca_kmer;
-				output_file << " C";
-				output_file << '\n';
-				complex_ambiguous_counter += 1;
+				
+				//output_file << ca_kmer;
+				//output_file << " C";
+				//output_file << '\n';
+				//complex_ambiguous_counter += 1;
 			}
 		}
 	}
-	return complex_ambiguous_counter;
+
+	double reg_kmer_count = 0;
+	for (int i = 0; i < 4; i++){reg_kmer_count+=kmer_nucleotide_occurrences[i][0];}
+	double leftover_count = (reg_kmer_count - used_reg_kmer_count) / write_kmers;
+
+
+	for (int x = 0; x < write_kmers; x++)
+	{
+		output_file << kmers2write[x];
+		//output_file << " C ";
+		output_file << " ";
+		output_file << counts2write[x] + leftover_count;
+		output_file << '\n';
+	}
+
+	return complex_ambiguous_counter + write_kmers;
 }
 
 vector<vector<char> > extract_ambiguous_position_matrix(int pattocc_count, int ambipos_count, vector<std::string> &kmer_occurrences, 

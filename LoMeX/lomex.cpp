@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 	*/
 
 	// Initialize arguments
-	string kmers_path, reads_path, output_path, work_dir, spaced_seed_pattern;
+	std::string kmers_path, reads_path, output_path, output_file_name, work_dir, spaced_seed_pattern;
 	int kmer_min, buffer_size, delete_files, skip_occurrences, skip_consensus, abs_min_nuc, iterations, search_threads, consensus_threads;
 	float relative_nuc_threshold;
 
@@ -60,7 +60,8 @@ int main(int argc, char *argv[])
 		("help,h", "Give help")
 		("k-mers,k", po::value<std::string>(& kmers_path)->default_value("na"), "Path to the k-mer file")
 		("reads,r", po::value<std::string>(& reads_path)->default_value("na"), "Path to the read file")
-		("output,o", po::value<std::string>(& output_path)->default_value(""), "Path to the output directory")
+		("output-path,o", po::value<std::string>(& output_path)->default_value(""), "Path to the output directory")
+		("output-file,q", po::value<std::string>(& output_file_name)->default_value("lomex-kmers.txt"), "Output file name")
 		("work-dir,w", po::value<std::string>(& work_dir)->default_value("work_tmp"), "Path to a working directory")
 		("spaced-seed,s", po::value<std::string>(& spaced_seed_pattern)->default_value("na"), "Spaced seed pattern")
 		("min-occ,m", po::value<int>(& kmer_min)->default_value(2), "Minimum number of k-mer occurrences required")
@@ -138,10 +139,19 @@ int main(int argc, char *argv[])
 	int nsa = 0;
 	int nca = 0;
 
+	int narkc = 0;
+	int nwrkc = 0;
+
+	uint64_t current_iteration_bytes;
+	uint64_t tmp_memory_bytes = 0;
+
+	int written_regular_kmers_count = 0;
+	int all_regular_kmers_count = 0;
+
 	for (int i = 0; i < iterations; i+=1)
 	{
 
-		std::cout << "Iteration: " << i+1 << std::endl;
+		std::cout << "== Iteration " << i+1 << "/" << iterations << "==" <<std::endl;
 
 		/*
 		 * Step 3: Run search step if it is not skipped
@@ -149,12 +159,15 @@ int main(int argc, char *argv[])
 		*/
 		if(skip_occurrences != 1)
 		{
-			std::cout << "Search step" << std::endl;
+			std::cout << "- Search step -" << std::endl;
 			start_time = std::chrono::high_resolution_clock::now();
-			run_search_step(work_dir, kmers_path, reads_path, buffer_size, total_length, fixed_length, character_status, kmer_min, i, iterations, search_threads, number_of_reads);
+			tie(current_iteration_bytes, nwrkc) = run_search_step(work_dir, kmers_path, reads_path, buffer_size, total_length, fixed_length, character_status, kmer_min, i, iterations, search_threads, number_of_reads);
+			tmp_memory_bytes += current_iteration_bytes;
 			end_time = std::chrono::high_resolution_clock::now();
 			elapsed_time = end_time - start_time;
 			search_seconds += (elapsed_time.count());
+			//std::cout << "FILE SIZES: " << tmp_memory_bytes << std::endl;
+			written_regular_kmers_count += nwrkc;
 			
 		}
 
@@ -164,16 +177,17 @@ int main(int argc, char *argv[])
 		*/
 		if (skip_consensus != 1)
 		{
-			std::cout << "Consensus step" << std::endl;
+			std::cout << "- Consensus step -" << std::endl;
 			start_time = std::chrono::high_resolution_clock::now();
 			//tie(nua, nsa, nca) = run_consensus_step_multithread(work_dir, output_path, total_length, fixed_length, relative_nuc_threshold, abs_min_nuc, delete_files, character_status, iterations, i, consensus_threads);
-			tie(nua, nsa, nca) = run_consensus_step(work_dir, output_path, total_length, fixed_length, relative_nuc_threshold, abs_min_nuc, delete_files, character_status);
+			tie(nua, nsa, nca, narkc) = run_consensus_step(work_dir, output_path, output_file_name, total_length, fixed_length, relative_nuc_threshold, abs_min_nuc, delete_files, character_status);
 			end_time = std::chrono::high_resolution_clock::now();
 			elapsed_time = end_time - start_time;
 			consensus_seconds += (elapsed_time.count());
 			ua += nua;
 			sa += nsa;
 			ca += nca;
+			all_regular_kmers_count += narkc;
 		}
 	}
 	
@@ -197,6 +211,11 @@ int main(int argc, char *argv[])
 	std::cout << "Search time (seconds): " << search_seconds << std::endl;
 	std::cout << "Consensus time (seconds): " << consensus_seconds << std::endl;
 	std::cout << "#######################################################" << std::endl << std::endl;
+
+
+	//std::cout << "THIS MANY TMP BYTES USED: " << tmp_memory_bytes << std::endl;
+	//std::cout << "THIS MANY REGULAR K-MERS WRITTEN: " << written_regular_kmers_count << std::endl;
+	//std::cout << "THIS MANY REGULAR K-MERS READ: " << all_regular_kmers_count << std::endl;
 
 
 	std::cout << "Program run finished successfully. Thank you for using LoMeX." << std::endl;

@@ -128,27 +128,28 @@ bool Kmer::compare_kmers(__int128_t kmer, __int128_t kmer_rev)
  * telling if the gapped k-mer is valid (i.e. contains
  * only characters ACTG).
  * */
-std::tuple<uint64_t, bool> Kmer::read_gapped_kmer(std::string read_block, std::vector<bool> character_status, int block_length){
+std::tuple<uint64_t, bool> Kmer::read_gapped_kmer(std::string  & full_read, std::vector<bool> & character_status, int start, int length){
 	uint64_t gapped_kmer = 0;
 
-	for(int i = 0; i < block_length; i++)
+	for(int i = 0; i < length; i++)
 	{
 		if(character_status[i])
 		{
-			uint8_t current_character = Kmer::map_base(read_block[i]);
+			uint8_t current_character = Kmer::map_base(full_read[start+i]);
 			if (current_character > DNA_MAP::G)
 			{
 				return std::make_tuple(gapped_kmer, false);
 			}
 			else
 			{
-				gapped_kmer = gapped_kmer | current_character; // bitwise OR operation
-				gapped_kmer = gapped_kmer << 2;
+				gapped_kmer <<= 2;
+				gapped_kmer |= current_character; // bitwise OR operation
+				
 
 			}
 		}
 	}
-	gapped_kmer = gapped_kmer >> 2;
+	//gapped_kmer = gapped_kmer >> 2;
 	return std::make_tuple(gapped_kmer, true);
 }
 
@@ -224,7 +225,7 @@ void Kmer::parse_kmers(const char *filename, uint64_t kmer_size, std::unordered_
 		for (uint i = 0; i < read.length()-total_length; i++){
 			uint64_t gap_kmer;
 			bool valid;
-			std::tie(gap_kmer, valid) = Kmer::read_gapped_kmer(read.substr(i, total_length), character_status, total_length);
+			std::tie(gap_kmer, valid) = Kmer::read_gapped_kmer(read, character_status, i, total_length);
 			if(valid)
 			{
 				reverse_gap_kmer = Kmer::reverse_complement(gap_kmer, kmer_size);
