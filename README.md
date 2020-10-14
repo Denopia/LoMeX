@@ -10,7 +10,7 @@ If SpacedSeedSqueakr works, LoMeX should work too.
 
 1. Download the project directory.
 2. Install modified Squeakr.
-- Go to ```SpacedSeedSqueakr``` directory and run command ```make```
+- Go to ```SpacedSeedSqueakr``` directory and run command ```make squeakr```
 3. Install LoMeX.
 - Go to ```LoMeX``` directory and run command ```make```
 
