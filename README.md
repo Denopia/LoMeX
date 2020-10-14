@@ -4,7 +4,7 @@ LoMeX is a long k-mer extraction program that utilizes spaced seeds. This progra
 
 ## Requirements
 SpacedSeedSqueakr has the same dependencies as the original Squeakr program, which can be found here https://github.com/splatlab/squeakr .
-If SpacedSeedSqueakr works, LoMeX should work too.
+If SpacedSeedSqueakr works, LoMeX should work too (Not sure about this, check if there are additional dependencies).
 
 ## Installation
 
