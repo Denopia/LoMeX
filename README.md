@@ -3,10 +3,14 @@
 LoMeX is a long k-mer extraction program that utilizes spaced seeds. This program consists of two separate programs: a modified version of an existing k-mer extraction program Squeakr (https://github.com/splatlab/squeakr), and the actual LoMeX program itself.
 
 ## Requirements
-- SpacedSeedSqueakr has the same dependencies as the original Squeakr program, which can be found here https://github.com/splatlab/squeakr .
+- SpacedSeedSqueakr has the same dependencies as the original Squeakr program (which can also be found here https://github.com/splatlab/squeakr).
+  - libboost-dev 1.58.0.1ubuntu1
+  - libssl-dev 1.0.2g-1ubuntu4.6
+  - zlib1g-dev 1:1.2.8.dfsg-2ubuntu4
+  - bzip2 1.0.6-8
+
 - C++11 compiler
-- OpenMP (version ?)
-- (Not sure what else, check if there are additional dependencies).
+- OpenMP (version X)
 
 ## Installation
 
@@ -23,14 +27,17 @@ LoMeX is a long k-mer extraction program that utilizes spaced seeds. This progra
 ```
 ./SpacedSeedSqueakr/squeakr count -e -c $M -k $K -s $S -t $T -p $SEED -o $OUTPUT $READS
   
+  Required parameters:
   -e : use exact counting (must be used)
   -c : M = minimum abundance
   -k : K = number of fixed positions
   -s : S = lognumslots (refer to the instructions of the original Squeakr)
-  -t : T = number of threads
   -p : SEED = spaced seed pattern e.g. "5-10-5-10-5".
   -o : OUTPUT = output file path
   READS = path to the read file
+  
+  Optional parameters:
+  -t : T = number of threads
 ```
   Spaced seed requirements:
 
@@ -42,6 +49,7 @@ LoMeX is a long k-mer extraction program that utilizes spaced seeds. This progra
 ```
 ./SpacedSeedSqueakr/squeakr list -f $OUTPUT -o $COUNTS
 
+  Required paramters:
   -f : OUTPUT = path to the output of the previous step
   -o : COUNTS = path to the file with extracted k-mers and their counts
 ```
@@ -50,12 +58,15 @@ LoMeX is a long k-mer extraction program that utilizes spaced seeds. This progra
 ```
 ./LoMeX/lomex-main.out -k $COUNTS -r $READS -s $SEED -o $OUTPUT_PATH -q $OUTPUT_NAME -w $TMP -m $M -n $N -l $L -b $B -i $I -t $T
   
+  Required parameters:
   -k : COUNTS = path to the output of the previous step
   -r : READS = path to the read file
   -s : S = spaced seed pattern
   -o : OUTPUT_PATH = path to a directory where output is created
   -q : OUTPUT_NAME = name of the output file
-  -w : TMP = path to an empty directory where temporary files are created (must exist and be empty, fix this later)
+  -w : TMP = path to an empty directory where temporary files are created (must exist and be empty, inconvenient -> fix this later)
+  
+  Optional parameters:
   -m : M = minumum spaced k-mer abundance (default=2)
   -n : N = minimum solid character abundance (default=2)
   -l : L = relative minimum solid character abundance (default=0.1)
