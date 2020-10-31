@@ -31,18 +31,19 @@ namespace bfs = boost::filesystem;
 //using namespace std;
 //using namespace boost::filesystem;
 
-
 int main(int argc, char *argv[])
 {
-
 	/*
 		Initialize random
 	*/
+
+	//std::cout << "PRING\n";
 
 	int random_seed = 999;
 	std::srand(random_seed);
 
 
+	//return 0;
 	/*
 	 * Step 1: Parse input arguments
 	 *
@@ -84,7 +85,9 @@ int main(int argc, char *argv[])
     	return 0;
 	}
 
+	//std::cout << "HELP\n";
 	int initialization_seconds, search_seconds, consensus_seconds;
+	//std::cout << "GRRTZ\n";
 	initialization_seconds = 0;
 	search_seconds = 0;
 	consensus_seconds = 0;
@@ -151,7 +154,7 @@ int main(int argc, char *argv[])
 	for (int i = 0; i < iterations; i+=1)
 	{
 
-		std::cout << "== Iteration " << i+1 << "/" << iterations << "==" <<std::endl;
+		std::cout << "== Iteration " << i+1 << "/" << iterations << " ==" <<std::endl;
 
 		/*
 		 * Step 3: Run search step if it is not skipped

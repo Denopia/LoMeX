@@ -32,10 +32,10 @@ tuple<int, int, int> run_consensus_step_multithread(std::string work_dir, std::s
 	bfs::path wd{work_dir};
     if(is_directory(wd)) {
     	std::cout << "Temp file directory found" << std::endl;
-        //std::cout << wd << " is a directory containing following files:\n";
+        std::cout << wd << " is a directory containing following files:\n";
         for(auto& entry : boost::make_iterator_range(bfs::directory_iterator(wd), {}))
         {
-            //std::cout << entry << std::endl;
+            std::cout << entry << std::endl;
             tmp_file_paths.push_back(entry.path().string());
         }
     }
@@ -86,6 +86,7 @@ tuple<int, int, int> run_consensus_step_multithread(std::string work_dir, std::s
 		bool undecided_kmer;
 
     	// Create file merger
+    	std::cout << "START TO MAKE MERGER" << std::endl;
     	TmpFileMerger tmp_merger;
 		tmp_merger.initialize_me(tmp_file_paths.size(), tmp_file_paths, fixed_length, total_length, character_status, delete_files, iterations, iteration, threads, thread);
 	    
@@ -394,10 +395,10 @@ tuple<int, int, int, int> run_consensus_step(std::string work_dir, std::string o
 
 	bfs::path wd{work_dir};
     if(is_directory(wd)) {
-        std::cout << "Temp file directory found" << std::endl;
+        std::cout << "Temp file directory found with the following files" << std::endl;
         for(auto& entry : boost::make_iterator_range(bfs::directory_iterator(wd), {}))
         {
-            //std::cout << entry << std::endl;
+            std::cout << entry << std::endl;
             tmp_file_paths.push_back(entry.path().string());
         }
     }
@@ -413,6 +414,7 @@ tuple<int, int, int, int> run_consensus_step(std::string work_dir, std::string o
     // Create file merger
     //tmp_merger.initialize_me(tmp_file_paths.size(), tmp_file_paths, fixed_length, total_length, character_status, delete_files);
 
+	std::cout << "STARTING TO CREATE FILE MERGER" << std::endl;
     tmp_merger.initialize_me(tmp_file_paths.size(), tmp_file_paths, fixed_length, total_length, character_status, delete_files, 1, 0, 1, 0);
 	    
 	std::cout << "File merger successfully created" << std::endl;

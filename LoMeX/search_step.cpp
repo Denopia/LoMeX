@@ -9,6 +9,7 @@
 #include "file_reader.hpp"
 #include "file_writer.hpp"
 #include "hashing.hpp"
+#include "memory_tracker.hpp"
 #include <functional>
 #include <iostream>
 #include <fstream>
@@ -27,9 +28,9 @@ using namespace std;
 tuple<uint64_t, int> run_search_step(std::string work_dir, std::string kmers_path, std::string reads_path, int buffer_size, int total_length, int fixed_length, vector<bool> & character_status, int kmer_min, int curite, int maxite, int threads, int number_of_reads)
 {
 
-	//std::cout << "Iteration " << curite "/" << maxite << std::endl;
-	//std::cout << "Maxite: " << maxite << std::endl;
-	//std::cout << "Curite: " << curite << std::endl;
+	long long USED_MEMORY_K2A = 0;
+
+	count_allocator<std::pair<__uint128_t, int>> allocator_kmer2abundance(&USED_MEMORY_K2A);
 
 
 	int written_kmers_count = 0;
@@ -51,8 +52,13 @@ tuple<uint64_t, int> run_search_step(std::string work_dir, std::string kmers_pat
 	//std::unordered_map<__uint128_t, int, std::function<__uint128_t(__uint128_t)>, std::function<bool(__uint128_t, __uint128_t)> > kmer2occ(buckets, hash_spaced_kmer, equal_spaced_kmers);
 	
 
-	std::unordered_map<__uint128_t, __uint128_t, std::function<__uint128_t(__uint128_t)>, std::function<bool(__uint128_t, __uint128_t)> > kmer2occ(buckets, hash_spaced_kmer, equal_spaced_kmers);
+	// BELOW WORKS
+	//std::unordered_map<__uint128_t, __uint128_t, std::function<__uint128_t(__uint128_t)>, std::function<bool(__uint128_t, __uint128_t)> > kmer2occ(buckets, hash_spaced_kmer, equal_spaced_kmers);
+	std::unordered_map<__uint128_t, int, std::function<__uint128_t(__uint128_t)>, std::function<bool(__uint128_t, __uint128_t)>, count_allocator<std::pair<__uint128_t, int> > > kmer2occ(buckets, hash_spaced_kmer, equal_spaced_kmers, allocator_kmer2abundance);
 	
+	//std::map<int, std::vector<int, count_allocator<int> >, std::less<int>, count_allocator<std::pair<int, std::vector<int> > > > mymap3(ca2);
+
+
 	//std::set<__uint128_t> kmer2occ2;
 
 
@@ -127,6 +133,9 @@ tuple<uint64_t, int> run_search_step(std::string work_dir, std::string kmers_pat
 	infile.close(); // close file
 	infile.clear(); // clear flags	
 
+	std::cout << "This many bytes used to store k-mers and their counts: " << USED_MEMORY_K2A << std::endl;
+
+
 	std::cout << "Number of qualified spaced k-mers: " << qualified_kmers << std::endl;
 	//std::cout << "Number of unqualified spaced k-mers: " << unqualified_kmers << std::endl;
 
@@ -143,9 +152,38 @@ tuple<uint64_t, int> run_search_step(std::string work_dir, std::string kmers_pat
 
 	uint64_t file_sizes[threads];
 
+
+	long long TOTAL_BUFFER_SIZE = buffer_size;
+	TOTAL_BUFFER_SIZE -= USED_MEMORY_K2A;
+
+	long long THREAD_BUFFER_SIZE = TOTAL_BUFFER_SIZE / threads;
+
+	std::cout << "BUFFER SIZE FOR ONE THREAD IS " << THREAD_BUFFER_SIZE << std::endl;
+
+	if (THREAD_BUFFER_SIZE < 1000) 
+	{
+		exit(1);
+	}
+
 	#pragma omp parallel for
 	for (int thread = 0; thread < threads; thread += 1)
 	{
+
+		// ======================================================
+		// ========== ALLOCATOR STUFF BEING DONE BELOW ==========
+
+		long long THREAD_BUFFER_USAGE = 0;
+
+		KmerToOccurrenceMap mykmer2occ(&THREAD_BUFFER_USAGE);
+
+
+		//count_allocator<std::pair<int, std::vector<uint8_t> > > thread_allocator_kmer2occurrences(&THREAD_BUFFER_USAGE);
+
+		//std::map<__uint128_t, std::vector<uint8_t, count_allocator<uint8_t> >, count_allocator<std::pair<__uint128_t, std::vector<uint8_t> > > > spaced2regular(thread_allocator_kmer2occurrences);
+
+
+		// ========== ALLOCATOR STUFF BEING DONE ABOVE ==========
+		// ======================================================
 
 		file_sizes[thread] = 0;
 		//std::cout << "Started thread: " << thread << std::endl;
@@ -161,7 +199,10 @@ tuple<uint64_t, int> run_search_step(std::string work_dir, std::string kmers_pat
 		uint8_t rando_nuc;
 		std::deque<bool> nasty_nucs;
 		std::deque<uint8_t> long_kmer_as_bits, long_kmer_as_bits_rev;
-		std::map<__uint128_t, vector<uint8_t> > spaced2regular;
+
+		// REMADE THIS WITH CUSTOM ALLOCATOR
+		//std::map<__uint128_t, vector<uint8_t> > spaced2regular;
+
 		std::string current_file_path;
 		int my_buffer;
 		int file_size;
@@ -244,105 +285,54 @@ tuple<uint64_t, int> run_search_step(std::string work_dir, std::string kmers_pat
 
 				spaced_kmer_as_bits_rev = reverse_complement_seqint(spaced_kmer_as_bits, fixed_length);
 
-				if (kmer2occ.count(spaced_kmer_as_bits) == 0 && kmer2occ.count(spaced_kmer_as_bits_rev) == 0) {continue;} //WOWOWOWOOWOWOWOWOWOWOWOWOWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
-				//if (kmer2occ2.count(spaced_kmer_as_bits) == 0 && kmer2occ2.count(spaced_kmer_as_bits_rev) == 0) {continue;}
+				if (kmer2occ.count(spaced_kmer_as_bits) == 0 && kmer2occ.count(spaced_kmer_as_bits_rev) == 0) {continue;}
 
-				// Check which is bigger, forward or reverse spaced k-mer, and add to buffer
-
-				//if (compare_seqs(spaced_kmer_as_bits, spaced_kmer_as_bits_rev)){put_kmer_in_buffer_REE(last4longkmers.back(), spaced2regular, spaced_kmer_as_bits);}
-				//else{put_kmer_in_buffer_REE(last4longkmersrev.back(), spaced2regular, spaced_kmer_as_bits_rev);}
-
-				//if (compare_seqs(spaced_kmer_as_bits, spaced_kmer_as_bits_rev))
 				if (spaced_kmer_as_bits <= spaced_kmer_as_bits_rev)
 				{
-					put_kmer_in_buffer(long_kmer_as_bits, spaced2regular, spaced_kmer_as_bits);
-					
-					/*
-					std::string debugstr = "";
-					for(auto& chara : long_kmer_as_bits)
-					{
-						debugstr +=  map_int2nuc(chara);
-					}
-					std::string debugstrmini = "";
-					for (int debugi = 0; debugi < total_length; debugi +=1)
-					{
-						if(character_status[debugi]==true)
-						{
-							debugstrmini = debugstrmini + debugstr[debugi];
-						}
-					}
-					std::string debugspaced = map_int2str(spaced_kmer_as_bits, static_cast<uint64_t>(fixed_length));
-					if(debugstrmini != debugspaced)
-					{
-						std::cout << "DONOTKNOW" << std::endl;
-					}
-					//debugging_file << debugstr << "\n";
-					*/
+					//put_kmer_in_buffer(long_kmer_as_bits, spaced2regular, spaced_kmer_as_bits);
+					mykmer2occ.put_kmer_in_buffer(long_kmer_as_bits, spaced_kmer_as_bits);
 				}
 				else
 				{
-					put_kmer_in_buffer(long_kmer_as_bits_rev, spaced2regular, spaced_kmer_as_bits_rev);
-
-					/*
-					std::string debugstr = "";
-					for(auto& chara : long_kmer_as_bits_rev)
-					{
-						debugstr +=  map_int2nuc(chara);
-					}
-					std::string debugstrmini = "";
-					for (int debugi = 0; debugi < total_length; debugi +=1)
-					{
-						if(character_status[debugi]==true)
-						{
-							debugstrmini = debugstrmini + debugstr[debugi];
-						}
-					}
-					std::string debugspaced = map_int2str(spaced_kmer_as_bits_rev, static_cast<uint64_t>(fixed_length));
-					if(debugstrmini != debugspaced)
-					{
-						std::cout << "DONOTKNOW" << std::endl;
-					}
-					//std::string debugstr = "";
-					//for(auto& chara : long_kmer_as_bits_rev)
-					//{
-					//	debugstr +=  map_int2nuc(chara);
-					//}
-					//debugging_file << debugstr << "\n";
-					*/
+					//put_kmer_in_buffer(long_kmer_as_bits_rev, spaced2regular, spaced_kmer_as_bits_rev);
+					mykmer2occ.put_kmer_in_buffer(long_kmer_as_bits_rev, spaced_kmer_as_bits_rev);
 				}
 
 				stored_counter += 1;
 				
 				if (stored_counter >= my_buffer)
+				//if (THREAD_BUFFER_USAGE >= THREAD_BUFFER_SIZE)
 				{
 					//tie(current_file_path, file_size) = write_regular_kmers_ready_binary(spaced2regular, work_dir, file_counter, fixed_length, total_length, thread);
-					tie(current_file_path, file_size) = write_regular_kmers_ready_binary_dupesnt(spaced2regular, work_dir, file_counter, fixed_length, total_length, thread, character_status);
-					//tie(current_file_path, file_size) = write_regular_kmers_ready_binary(spaced2regular, work_dir, file_counter, fixed_length, total_length, thread);
+
+					//tie(current_file_path, file_size) = write_regular_kmers_ready_binary_dupesnt(spaced2regular, work_dir, file_counter, fixed_length, total_length, thread, character_status);
+					//spaced2regular.clear();
+					
+					file_size = mykmer2occ.write_buffer_to_disk(work_dir, file_counter, fixed_length, total_length, thread, character_status);
+					mykmer2occ.clear_everything();
+
 					file_sizes[thread] += file_size;
-					//current_file_path = write_regular_kmers_ready_binary(spaced2regular, work_dir, file_counter, fixed_length, total_length, thread);
-					//kmer_occurrences_file_paths.push_back(current_file_path);
 					written_kmers_count += stored_counter;
 					stored_counter = 0;
-					file_counter += 1;
-					spaced2regular.clear();
-					//std::cout << "File written: " << file_counter << std::endl;
+					file_counter += 1;	
 				}
 			}
 		}
 		//tie(current_file_path, file_size) = write_regular_kmers_ready_binary(spaced2regular, work_dir, file_counter, fixed_length, total_length, thread);
 		if (stored_counter > 0)
 		{
-			tie(current_file_path, file_size) = write_regular_kmers_ready_binary_dupesnt(spaced2regular, work_dir, file_counter, fixed_length, total_length, thread, character_status);
-			//tie(current_file_path, file_size) = write_regular_kmers_ready_binary(spaced2regular, work_dir, file_counter, fixed_length, total_length, thread);
+			//tie(current_file_path, file_size) = write_regular_kmers_ready_binary_dupesnt(spaced2regular, work_dir, file_counter, fixed_length, total_length, thread, character_status);
+			//spaced2regular.clear();
+
+			file_size = mykmer2occ.write_buffer_to_disk(work_dir, file_counter, fixed_length, total_length, thread, character_status);
+			mykmer2occ.clear_everything();
+
 			file_sizes[thread] += file_size;
 			written_kmers_count += stored_counter;
-			//current_file_path = write_regular_kmers_ready_binary(spaced2regular, work_dir, file_counter, fixed_length, total_length, thread);
-			//kmer_occurrences_file_paths.push_back(current_file_path);
 			stored_counter = 0;
 			file_counter += 1;
-			spaced2regular.clear();
-			//std::cout << "File written: " << file_counter << std::endl;
 		}
+
 		fastq_reader.kill_me();
 	}
 
